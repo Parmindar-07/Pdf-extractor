@@ -329,7 +329,7 @@
           <div>
             <div class="drop-mark">+</div>
             <p class="drop-title">PDF / Image select karo</p>
-            <p class="drop-copy" id="fileName">Drag-drop bhi chalega. Data browser ke andar process hota hai.</p>
+            <p class="drop-copy" id="fileName">Drag-drop & select your file</p>
           </div>
         </label>
 
@@ -739,7 +739,7 @@
 
     function setFile(file) {
       state.file = file;
-      $("fileName").textContent = file ? file.name : "Drag-drop bhi chalega. Data browser ke andar process hota hai.";
+      $("fileName").textContent = file ? file.name : "Drop here your App file";
       extractBtn.disabled = !file;
       setStatus(file ? "File ready" : "Ready");
     }
