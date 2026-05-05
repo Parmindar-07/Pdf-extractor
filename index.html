@@ -40,7 +40,7 @@
     }
 
     .shell {
-      width: min(1180px, calc(100% - 32px));
+      width: min(1560px, calc(100% - 32px));
       margin: 0 auto;
       padding: 28px 0 36px;
     }
@@ -80,9 +80,25 @@
 
     main {
       display: grid;
-      grid-template-columns: 340px 1fr;
+      grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
       gap: 18px;
       align-items: start;
+    }
+
+    .scrub-column {
+      display: grid;
+      gap: 18px;
+      position: sticky;
+      top: 20px;
+      align-self: start;
+    }
+
+    .extractor-column {
+      display: grid;
+      grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+      min-width: 0;
     }
 
     .panel {
@@ -96,6 +112,10 @@
       padding: 18px;
       position: sticky;
       top: 20px;
+    }
+
+    .scrub-panel {
+      padding: 18px;
     }
 
     .dropzone {
@@ -193,6 +213,7 @@
     .content {
       display: grid;
       gap: 18px;
+      min-width: 0;
     }
 
     .section {
@@ -266,6 +287,48 @@
       outline: none;
     }
 
+    .scrub-textarea {
+      min-height: 230px;
+      font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+
+    .scrub-output {
+      width: 100%;
+      min-height: 420px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.45;
+      outline: none;
+      overflow: auto;
+      user-select: text;
+    }
+
+    .scrub-output a {
+      color: #1a0dab;
+      text-decoration: underline;
+    }
+
+    .scrub-output div {
+      min-height: 20px;
+    }
+
+    .mini-btn {
+      min-height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 10px;
+      background: #eef2f7;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
     progress {
       width: 100%;
       height: 10px;
@@ -288,6 +351,17 @@
       line-height: 1.45;
     }
 
+    @media (max-width: 1180px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .scrub-column,
+      .upload-panel {
+        position: static;
+      }
+    }
+
     @media (max-width: 860px) {
       header {
         display: grid;
@@ -299,6 +373,10 @@
       }
 
       main {
+        grid-template-columns: 1fr;
+      }
+
+      .extractor-column {
         grid-template-columns: 1fr;
       }
 
@@ -323,75 +401,94 @@
     </header>
 
     <main>
-      <aside class="panel upload-panel">
-        <label class="dropzone" id="dropzone">
-          <input id="fileInput" type="file" accept="application/pdf,image/*">
-          <div>
-            <div class="drop-mark">+</div>
-            <p class="drop-title">select PDF / Image</p>
-            <p class="drop-copy" id="fileName">Drag-drop & select your file</p>
+      <aside class="scrub-column">
+        <section class="panel scrub-panel">
+          <div class="section-head">
+            <h2>Pricing Scrub</h2>
           </div>
-        </label>
+          <textarea class="scrub-textarea" id="pricingScrub" spellcheck="false"></textarea>
+        </section>
 
-        <div class="progress-wrap" id="progressWrap">
-          <progress id="progress" value="0" max="100"></progress>
-          <div class="subtle" id="progressText">Processing...</div>
-        </div>
-
-        <div class="actions">
-          <button class="btn" id="extractBtn" disabled>Extract Details</button>
-          <button class="btn secondary" id="downloadBtn" disabled>Download Excel</button>
-          <button class="btn ghost" id="clearBtn">Clear</button>
-        </div>
-
-        <div class="meta">
-          <div>For best results, use a clear, straight, high-resolution scan or image.</div>
-          <div class="warn">Please verify TIN and SSN values before downloading the Excel file.</div>
-        </div>
+        <section class="panel scrub-panel">
+          <div class="section-head">
+            <h2>Credit Scrub</h2>
+            <button class="mini-btn" id="copyCreditBtn" type="button">Copy</button>
+          </div>
+          <div class="scrub-output" id="creditScrub" tabindex="0" aria-label="Credit Scrub"></div>
+        </section>
       </aside>
 
-      <section class="content">
-        <div class="panel section">
-          <div class="section-head">
-            <h2>Business Information</h2>
-            <div class="confidence" id="businessCount">0 fields found</div>
-          </div>
-          <div class="grid" id="businessFields"></div>
-        </div>
+      <section class="extractor-column">
+        <aside class="panel upload-panel">
+          <label class="dropzone" id="dropzone">
+            <input id="fileInput" type="file" accept="application/pdf,image/*">
+            <div>
+              <div class="drop-mark">+</div>
+              <p class="drop-title">select PDF / Image</p>
+              <p class="drop-copy" id="fileName">Drag-drop & select your file</p>
+            </div>
+          </label>
 
-        <div class="panel section">
-          <div class="section-head">
-            <h2>Owner 1 Information</h2>
-            <div class="confidence" id="owner1Count">0 fields found</div>
+          <div class="progress-wrap" id="progressWrap">
+            <progress id="progress" value="0" max="100"></progress>
+            <div class="subtle" id="progressText">Processing...</div>
           </div>
-          <div class="grid" id="owner1Fields"></div>
-        </div>
 
-        <div class="panel section">
-          <div class="section-head">
-            <h2>2nd Owner Information</h2>
-            <div class="confidence" id="owner2Count">0 fields found</div>
+          <div class="actions">
+            <button class="btn" id="extractBtn" disabled>Extract Details</button>
+            <button class="btn secondary" id="downloadBtn" disabled>Download Excel</button>
+            <button class="btn ghost" id="clearBtn">Clear</button>
           </div>
-          <div class="grid" id="owner2Fields"></div>
-        </div>
 
-        <div class="panel section">
-          <div class="section-head">
-            <h2>3rd Owner Information</h2>
-            <div class="confidence" id="owner3Count">0 fields found</div>
+          <div class="meta">
+            <div>For best results, use a clear, straight, high-resolution scan or image.</div>
+            <div class="warn">Please verify TIN and SSN values before downloading the Excel file.</div>
           </div>
-          <div class="grid" id="owner3Fields"></div>
-        </div>
+        </aside>
 
-        <div class="panel section">
-          <div class="section-head">
-            <h2>4th Owner Information</h2>
-            <div class="confidence" id="owner4Count">0 fields found</div>
+        <section class="content">
+          <div class="panel section">
+            <div class="section-head">
+              <h2>Business Information</h2>
+              <div class="confidence" id="businessCount">0 fields found</div>
+            </div>
+            <div class="grid" id="businessFields"></div>
           </div>
-          <div class="grid" id="owner4Fields"></div>
-        </div>
 
-        <textarea id="rawText" hidden></textarea>
+          <div class="panel section">
+            <div class="section-head">
+              <h2>Owner 1 Information</h2>
+              <div class="confidence" id="owner1Count">0 fields found</div>
+            </div>
+            <div class="grid" id="owner1Fields"></div>
+          </div>
+
+          <div class="panel section">
+            <div class="section-head">
+              <h2>2nd Owner Information</h2>
+              <div class="confidence" id="owner2Count">0 fields found</div>
+            </div>
+            <div class="grid" id="owner2Fields"></div>
+          </div>
+
+          <div class="panel section">
+            <div class="section-head">
+              <h2>3rd Owner Information</h2>
+              <div class="confidence" id="owner3Count">0 fields found</div>
+            </div>
+            <div class="grid" id="owner3Fields"></div>
+          </div>
+
+          <div class="panel section">
+            <div class="section-head">
+              <h2>4th Owner Information</h2>
+              <div class="confidence" id="owner4Count">0 fields found</div>
+            </div>
+            <div class="grid" id="owner4Fields"></div>
+          </div>
+
+          <textarea id="rawText" hidden></textarea>
+        </section>
       </section>
     </main>
   </div>
@@ -488,6 +585,9 @@
     const progressWrap = $("progressWrap");
     const progress = $("progress");
     const progressText = $("progressText");
+    const pricingScrub = $("pricingScrub");
+    const creditScrub = $("creditScrub");
+    const copyCreditBtn = $("copyCreditBtn");
 
     function renderFields() {
       renderFieldGroup("businessFields", businessFields);
@@ -507,6 +607,12 @@
         input.addEventListener("input", () => {
           state.values[key] = input.value.trim();
           updateCounts();
+        });
+        input.addEventListener("blur", () => {
+          if (key !== "einNumber") return;
+          state.values[key] = formatEin(input.value);
+          input.value = state.values[key];
+          updateCreditScrub();
         });
         container.appendChild(field);
       });
@@ -539,6 +645,190 @@
         $(group.countId).textContent = `${groupFound} fields found`;
       });
       downloadBtn.disabled = businessFound + ownerFound === 0;
+      updateCreditScrub();
+    }
+
+    function formatEin(value) {
+      const digits = String(value || "").replace(/\D/g, "").slice(0, 9);
+      if (digits.length <= 2) return digits;
+      return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    }
+
+    function previousMonthName(date = new Date()) {
+      const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      return names[(date.getMonth() + 11) % 12];
+    }
+
+    function normalizeRevenueMonth(value) {
+      const key = String(value || "").toLowerCase().replace(/[^a-z]/g, "");
+      const aliases = {
+        jan: "January",
+        january: "January",
+        feb: "February",
+        february: "February",
+        febuary: "February",
+        mar: "March",
+        march: "March",
+        apr: "April",
+        april: "April",
+        may: "May",
+        jun: "June",
+        june: "June",
+        jul: "July",
+        july: "July",
+        aug: "August",
+        august: "August",
+        sep: "September",
+        sept: "September",
+        september: "September",
+        oct: "October",
+        october: "October",
+        nov: "November",
+        november: "November",
+        dec: "December",
+        december: "December"
+      };
+      return aliases[key] || "";
+    }
+
+    function parsePricingScrub(text) {
+      const normalized = String(text || "").replace(/\r/g, "\n");
+      const lines = normalized.split("\n").map((line) => cleanOutput(line)).filter(Boolean);
+      let tier = lines[0] || "";
+      const depositIndex = tier.search(/\bDeposits?(?:\s*\([^)]*\))?\s*:/i);
+      if (depositIndex >= 0) tier = tier.slice(0, depositIndex);
+      if (/^(?:Deposits|Industry|TIB|State|Datamerch|Company\s+Website|Proceed)\b/i.test(tier)) tier = "";
+
+      const readInline = (regex) => {
+        const match = normalized.match(regex);
+        return match ? cleanOutput(match[1]) : "";
+      };
+
+      const website = readInline(/Company\s+Website\s*:\s*([^\n\r]*)/i);
+      const depositsMatch = normalized.match(/\bDeposits?(?:\s*\(([^)]*)\))?\s*:\s*(.*?)(?:,\s*Industry\s*:|\n|\r|$)/i);
+      return {
+        tier: cleanOutput(tier),
+        deposits: depositsMatch ? cleanOutput(depositsMatch[2]) : "",
+        revenueMonth: normalizeRevenueMonth(depositsMatch && depositsMatch[1]) || previousMonthName(),
+        industry: readInline(/Industry\s*:\s*([^,\n\r]*)/i),
+        tib: readInline(/\bTIB\s*:\s*([^,\n\r]*)/i),
+        state: readInline(/\bState\s*:\s*([^,\n\r]*)/i),
+        website: website && !/^not\s+found$/i.test(website) ? website : "Not Found"
+      };
+    }
+
+    function normalizeStateCode(value) {
+      const cleaned = cleanOutput(value).replace(/[^A-Za-z ]/g, " ").replace(/\s+/g, " ").trim();
+      if (!cleaned) return "";
+      const upper = cleaned.toUpperCase();
+      if (stateCodes.has(upper)) return upper;
+      const codeMatch = upper.match(/\b[A-Z]{2}\b/);
+      if (codeMatch && stateCodes.has(codeMatch[0])) return codeMatch[0];
+      return stateNameCodes[upper] || cleaned;
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function searchItem(name, stateValue) {
+      const cleanName = cleanOutput(name);
+      if (!cleanName) return null;
+      const stateCode = normalizeStateCode(stateValue);
+      const query = cleanOutput(`${cleanName} ${stateCode}`);
+      return {
+        text: `${query} Google Search`,
+        href: `https://www.google.com/search?q=${encodeURIComponent(query)}`
+      };
+    }
+
+    function ownerSearchItems(searchState) {
+      return [
+        "ownerName",
+        "owner2Name",
+        "owner3Name",
+        "owner4Name"
+      ]
+        .map((nameKey) => searchItem(state.values[nameKey], searchState))
+        .filter(Boolean);
+    }
+
+    function extractedScrubState() {
+      return state.values.businessState;
+    }
+
+    function creditScrubData() {
+      const pricing = parsePricingScrub(pricingScrub.value);
+      const pdfState = extractedScrubState();
+      const scrubState = pdfState || pricing.state;
+      const searchState = pdfState || pricing.state;
+      const businessSearch = searchItem(state.values.businessName || state.values.businessDbaName, searchState);
+      const peopleSearches = ownerSearchItems(searchState);
+      return {
+        pricing,
+        businessSearch,
+        peopleSearches,
+        infoLines: [
+          `Company Website : ${pricing.website || "Not Found"}`,
+          "",
+          "FICO :",
+          `${pricing.revenueMonth} Revenue : ${pricing.deposits}`,
+          `Industry : ${pricing.industry}`,
+          `TIB : ${pricing.tib}`,
+          `State : ${normalizeStateCode(scrubState)}`,
+          "Datamerch : No Match",
+          "Received : N",
+          `EIN : ${formatEin(state.values.einNumber)}`,
+          "Customer Id :"
+        ]
+      };
+    }
+
+    function buildCreditScrubPlain() {
+      const data = creditScrubData();
+      const lines = [];
+
+      if (data.pricing.tier) lines.push(data.pricing.tier, "");
+      if (data.businessSearch) lines.push(data.businessSearch.text);
+      if (data.businessSearch && data.peopleSearches.length) lines.push("");
+      data.peopleSearches.forEach((item) => lines.push(item.text));
+      if (data.businessSearch || data.peopleSearches.length) lines.push("");
+      lines.push(...data.infoLines);
+
+      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd();
+    }
+
+    function buildCreditScrubHtml() {
+      const data = creditScrubData();
+      const parts = [];
+      const addLine = (line) => parts.push(line ? `<div>${escapeHtml(line)}</div>` : "<br>");
+
+      if (data.pricing.tier) {
+        addLine(data.pricing.tier);
+        addLine("");
+      }
+
+      if (data.businessSearch) {
+        parts.push(`<div><a href="${escapeHtml(data.businessSearch.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(data.businessSearch.text)}</a></div>`);
+      }
+      if (data.businessSearch && data.peopleSearches.length) addLine("");
+      data.peopleSearches.forEach((item) => {
+        parts.push(`<div><a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.text)}</a></div>`);
+      });
+      if (data.businessSearch || data.peopleSearches.length) addLine("");
+      data.infoLines.forEach(addLine);
+
+      return parts.join("");
+    }
+
+    function updateCreditScrub() {
+      if (!creditScrub || !pricingScrub) return;
+      creditScrub.innerHTML = buildCreditScrubHtml();
     }
 
     function normalizeLabel(label) {
@@ -745,6 +1035,60 @@
     }
 
     const stateCodes = new Set("AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split(" "));
+    const stateNameCodes = {
+      ALABAMA: "AL",
+      ALASKA: "AK",
+      ARIZONA: "AZ",
+      ARKANSAS: "AR",
+      CALIFORNIA: "CA",
+      CALIFORNIYA: "CA",
+      COLORADO: "CO",
+      CONNECTICUT: "CT",
+      DELAWARE: "DE",
+      FLORIDA: "FL",
+      GEORGIA: "GA",
+      HAWAII: "HI",
+      IDAHO: "ID",
+      ILLINOIS: "IL",
+      INDIANA: "IN",
+      IOWA: "IA",
+      KANSAS: "KS",
+      KENTUCKY: "KY",
+      LOUISIANA: "LA",
+      MAINE: "ME",
+      MARYLAND: "MD",
+      MASSACHUSETTS: "MA",
+      MICHIGAN: "MI",
+      MINNESOTA: "MN",
+      MISSISSIPPI: "MS",
+      MISSOURI: "MO",
+      MONTANA: "MT",
+      NEBRASKA: "NE",
+      NEVADA: "NV",
+      "NEW HAMPSHIRE": "NH",
+      "NEW JERSEY": "NJ",
+      "NEW MEXICO": "NM",
+      "NEW YORK": "NY",
+      "NORTH CAROLINA": "NC",
+      "NORTH DAKOTA": "ND",
+      OHIO: "OH",
+      OKLAHOMA: "OK",
+      OREGON: "OR",
+      PENNSYLVANIA: "PA",
+      "RHODE ISLAND": "RI",
+      "SOUTH CAROLINA": "SC",
+      "SOUTH DAKOTA": "SD",
+      TENNESSEE: "TN",
+      TEXAS: "TX",
+      UTAH: "UT",
+      VERMONT: "VT",
+      VIRGINIA: "VA",
+      WASHINGTON: "WA",
+      "WEST VIRGINIA": "WV",
+      WISCONSIN: "WI",
+      WYOMING: "WY",
+      "DISTRICT OF COLUMBIA": "DC"
+    };
 
     const directFieldRules = [
       { key: "businessName", section: "business", pattern: /legal\s+company\s+name|business\s+legal\s+name|business\s+name|merchant/i },
@@ -1422,6 +1766,7 @@
       ["ownerName", "owner2Name", "owner3Name", "owner4Name"].forEach((key) => {
         state.values[key] = cleanOutput(state.values[key]).replace(/\s+Last\s+name\s*$/i, "").trim();
       });
+      state.values.einNumber = formatEin(state.values.einNumber);
     }
 
     function extractDetailsFromText(text) {
@@ -1518,6 +1863,7 @@
 
     function downloadExcel() {
       applyFixedBusinessContact();
+      state.values.einNumber = formatEin(state.values.einNumber);
       const workbook = XLSX.utils.book_new();
       const rows = [
         ["Business Legal Name", state.values.businessName, "", "", ""],
@@ -1586,17 +1932,56 @@
       state.file = null;
       fileInput.value = "";
       rawText.value = "";
+      pricingScrub.value = "";
       Object.keys(state.values).forEach((key) => state.values[key] = "");
       applyFixedBusinessContact();
       renderFields();
       setFile(null);
       setProgress(false);
+      updateCreditScrub();
     }
 
     fileInput.addEventListener("change", (event) => setFile(event.target.files[0] || null));
     extractBtn.addEventListener("click", processFile);
     downloadBtn.addEventListener("click", downloadExcel);
     clearBtn.addEventListener("click", clearAll);
+    pricingScrub.addEventListener("input", updateCreditScrub);
+    copyCreditBtn.addEventListener("click", async () => {
+      const plainText = buildCreditScrubPlain();
+      const htmlText = buildCreditScrubHtml();
+      const selectCreditScrub = () => {
+        const range = document.createRange();
+        range.selectNodeContents(creditScrub);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      };
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/html": new Blob([htmlText], { type: "text/html" }),
+              "text/plain": new Blob([plainText], { type: "text/plain" })
+            })
+          ]);
+        } else {
+          selectCreditScrub();
+          document.execCommand("copy");
+          window.getSelection().removeAllRanges();
+        }
+        setStatus("Credit scrub copied");
+      } catch (error) {
+        selectCreditScrub();
+        try {
+          document.execCommand("copy");
+        } catch (_) {
+        } finally {
+          window.getSelection().removeAllRanges();
+        }
+        setStatus("Credit scrub ready");
+      }
+    });
     rawText.addEventListener("input", () => {
       extractDetailsFromText(rawText.value);
       updateCounts();
