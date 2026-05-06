@@ -439,11 +439,11 @@
             <div class="subtle" id="progressText">Processing...</div>
           </div>
 
-        <div class="actions">
-          <button class="btn" id="extractBtn" disabled>Extract Details</button>
-          <button class="btn secondary" id="downloadBtn" disabled>Download Excel</button>
-          <button class="btn ghost" id="clearBtn">Clear</button>
-        </div>
+          <div class="actions">
+            <button class="btn" id="extractBtn" disabled>Extract Details</button>
+            <button class="btn secondary" id="downloadBtn" disabled>Download Excel</button>
+            <button class="btn ghost" id="clearBtn">Clear</button>
+          </div>
 
           <div class="meta">
             <div>For best results, use a clear, straight, high-resolution scan or image.</div>
@@ -593,15 +593,16 @@
     const fileInput = $("fileInput");
     const dropzone = $("dropzone");
     const extractBtn = $("extractBtn");
-    const saveLearningBtn = $("saveLearningBtn");
     const downloadBtn = $("downloadBtn");
     const clearBtn = $("clearBtn");
-    const resetLearningBtn = $("resetLearningBtn");
     const rawText = $("rawText");
     const statusEl = $("status");
     const progressWrap = $("progressWrap");
     const progress = $("progress");
     const progressText = $("progressText");
+    const pricingScrub = $("pricingScrub");
+    const creditScrub = $("creditScrub");
+    const copyCreditBtn = $("copyCreditBtn");
 
     function renderFields() {
       renderFieldGroup("businessFields", businessFields);
@@ -667,6 +668,262 @@
         $(group.countId).textContent = `${groupFound} fields found`;
       });
       downloadBtn.disabled = businessFound + ownerFound === 0;
+      updateCreditScrub();
+    }
+
+    function formatEin(value) {
+      const digits = String(value || "").replace(/\D/g, "").slice(0, 9);
+      if (digits.length <= 2) return digits;
+      return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    }
+
+    function previousMonthName(date = new Date()) {
+      const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      return names[(date.getMonth() + 11) % 12];
+    }
+
+    function normalizeRevenueMonth(value) {
+      const key = String(value || "").toLowerCase().replace(/[^a-z]/g, "");
+      const aliases = {
+        jan: "January",
+        january: "January",
+        feb: "February",
+        february: "February",
+        febuary: "February",
+        mar: "March",
+        march: "March",
+        apr: "April",
+        april: "April",
+        may: "May",
+        jun: "June",
+        june: "June",
+        jul: "July",
+        july: "July",
+        aug: "August",
+        august: "August",
+        sep: "September",
+        sept: "September",
+        september: "September",
+        oct: "October",
+        october: "October",
+        nov: "November",
+        november: "November",
+        dec: "December",
+        december: "December"
+      };
+      return aliases[key] || "";
+    }
+
+    function parsePricingScrub(text) {
+      const normalized = String(text || "").replace(/\r/g, "\n");
+      const lines = normalized.split("\n").map((line) => cleanOutput(line)).filter(Boolean);
+      let tier = lines[0] || "";
+      const depositIndex = tier.search(/\bDeposits?(?:\s*\([^)]*\))?\s*:/i);
+      if (depositIndex >= 0) tier = tier.slice(0, depositIndex);
+      if (/^(?:Deposits|Industry|TIB|State|Datamerch|Company\s+Website|Proceed)\b/i.test(tier)) tier = "";
+
+      const readInline = (regex) => {
+        const match = normalized.match(regex);
+        return match ? cleanOutput(match[1]) : "";
+      };
+
+      const website = readInline(/Company\s+Website\s*:\s*([^\n\r]*)/i);
+      const depositsMatch = normalized.match(/\bDeposits?(?:\s*\(([^)]*)\))?\s*:\s*(.*?)(?:,\s*Industry\s*:|\n|\r|$)/i);
+      return {
+        tier: cleanOutput(tier),
+        deposits: depositsMatch ? cleanOutput(depositsMatch[2]) : "",
+        revenueMonth: normalizeRevenueMonth(depositsMatch && depositsMatch[1]) || previousMonthName(),
+        industry: readInline(/Industry\s*:\s*([^,\n\r]*)/i),
+        tib: readInline(/\bTIB\s*:\s*([^,\n\r]*)/i),
+        state: readInline(/\bState\s*:\s*([^,\n\r]*)/i),
+        website: website && !/^not\s+found$/i.test(website) ? website : "Not Found"
+      };
+    }
+
+    function normalizeStateCode(value) {
+      const cleaned = cleanOutput(value).replace(/[^A-Za-z ]/g, " ").replace(/\s+/g, " ").trim();
+      if (!cleaned) return "";
+      const upper = cleaned.toUpperCase();
+      if (stateCodes.has(upper)) return upper;
+      const codeMatch = upper.match(/\b[A-Z]{2}\b/);
+      if (codeMatch && stateCodes.has(codeMatch[0])) return codeMatch[0];
+      return stateNameCodes[upper] || cleaned;
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function searchItem(name, stateValue) {
+      const cleanName = cleanOutput(name);
+      if (!cleanName) return null;
+      const stateCode = normalizeStateCode(stateValue);
+      const query = cleanOutput(`${cleanName} ${stateCode}`);
+      return {
+        text: `${query} Google Search`,
+        href: `https://www.google.com/search?q=${encodeURIComponent(query)}`
+      };
+    }
+
+    function ownerSearchItems(searchState) {
+      return [
+        "ownerName",
+        "owner2Name",
+        "owner3Name",
+        "owner4Name"
+      ]
+        .map((nameKey) => searchItem(state.values[nameKey], searchState))
+        .filter(Boolean);
+    }
+
+    function extractedScrubState() {
+      return state.values.businessState;
+    }
+
+    function creditScrubData() {
+      const pricing = parsePricingScrub(pricingScrub.value);
+      const pdfState = extractedScrubState();
+      const scrubState = pdfState || pricing.state;
+      const searchState = pdfState || pricing.state;
+      const businessSearch = searchItem(state.values.businessName || state.values.businessDbaName, searchState);
+      const peopleSearches = ownerSearchItems(searchState);
+      return {
+        pricing,
+        businessSearch,
+        peopleSearches,
+        infoLines: [
+          `Company Website : ${pricing.website || "Not Found"}`,
+          "",
+          "FICO :",
+          `${pricing.revenueMonth} Revenue : ${pricing.deposits}`,
+          `Industry : ${pricing.industry}`,
+          `TIB : ${pricing.tib}`,
+          `State : ${normalizeStateCode(scrubState)}`,
+          "Datamerch : No Match",
+          "Received : N",
+          `EIN : ${formatEin(state.values.einNumber)}`,
+          "Customer Id :"
+        ]
+      };
+    }
+
+    function buildCreditScrubPlain() {
+      const data = creditScrubData();
+      const lines = [];
+
+      if (data.pricing.tier) lines.push(data.pricing.tier, "");
+      if (data.businessSearch) lines.push(data.businessSearch.text);
+      if (data.businessSearch && data.peopleSearches.length) lines.push("");
+      data.peopleSearches.forEach((item) => lines.push(item.text));
+      if (data.businessSearch || data.peopleSearches.length) lines.push("");
+      lines.push(...data.infoLines);
+
+      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd();
+    }
+
+    function buildCreditScrubHtml() {
+      const data = creditScrubData();
+      const parts = [];
+      const addLine = (line) => parts.push(line ? `<div>${escapeHtml(line)}</div>` : "<br>");
+
+      if (data.pricing.tier) {
+        addLine(data.pricing.tier);
+        addLine("");
+      }
+
+      if (data.businessSearch) {
+        parts.push(`<div><a href="${escapeHtml(data.businessSearch.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(data.businessSearch.text)}</a></div>`);
+      }
+      if (data.businessSearch && data.peopleSearches.length) addLine("");
+      data.peopleSearches.forEach((item) => {
+        parts.push(`<div><a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.text)}</a></div>`);
+      });
+      if (data.businessSearch || data.peopleSearches.length) addLine("");
+      data.infoLines.forEach(addLine);
+
+      return parts.join("");
+    }
+
+    function updateCreditScrub() {
+      if (!creditScrub || !pricingScrub) return;
+      creditScrub.innerHTML = buildCreditScrubHtml();
+    }
+
+    function resetExtractionValues() {
+      allFields.forEach(([key]) => {
+        state.lowConfidence[key] = false;
+        state.confidenceNotes[key] = "";
+        if (!state.manual[key]) state.values[key] = "";
+      });
+      applyFixedBusinessContact();
+    }
+
+    function markLowConfidence(key, note = "Low confidence extraction - please verify.") {
+      if (!key || !state.values[key]) return;
+      state.lowConfidence[key] = true;
+      state.confidenceNotes[key] = note;
+    }
+
+    function clearConfidence(key) {
+      state.lowConfidence[key] = false;
+      state.confidenceNotes[key] = "";
+    }
+
+    function numericOcrCleanup(value) {
+      return String(value || "")
+        .replace(/[OoQ]/g, "0")
+        .replace(/[Il|]/g, "1")
+        .replace(/[Ss]/g, "5")
+        .replace(/[Bb]/g, "8")
+        .replace(/[Zz]/g, "2")
+        .replace(/[Gg]/g, "6");
+    }
+
+    function cleanValueForKey(key, value) {
+      let cleaned = sensitiveKeys.has(key) ? cleanSensitiveNumber(value, key) : cleanOutput(value);
+      if (sensitiveKeys.has(key)) cleaned = cleanSensitiveNumber(numericOcrCleanup(value), key);
+      if (phoneKeys.has(key)) cleaned = cleanPhoneNumber(numericOcrCleanup(value));
+      if (emailKeys.has(key)) cleaned = cleanEmailAddress(value);
+      if (addressKeys.has(key)) cleaned = stripTrailingEmptyLabels(cleaned);
+      if (key === "businessName") cleaned = cleaned.replace(/\s+(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)\s*$/i, "").trim();
+      if (key === "businessDbaName" && /^(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)$/i.test(cleaned)) cleaned = "";
+      if (key === "businessDbaName") cleaned = cleaned.replace(/\s+(?:Owner\(s\)|Owner\s+\d+\s+Information|Owner\s+Information|Officers\(s\)).*$/i, "").trim();
+      if (nameKeys.has(key)) {
+        cleaned = cleaned
+          .replace(/\s+Name\s*\(\s*[2-4](?:nd|rd|th)?\s+Owner\s*\)\s*$/i, "")
+          .replace(/\s+Last\s+name\s*$/i, "")
+          .trim();
+      }
+      if (dateKeys.has(key)) {
+        const normalizedDate = numericOcrCleanup(cleaned).replace(/[.\-]/g, "/");
+        const dateMatch = normalizedDate.match(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/);
+        cleaned = dateMatch ? dateMatch[0] : "";
+      }
+      return cleaned;
+    }
+
+    function canWriteValue(key, force = false) {
+      if (!key) return false;
+      if (state.manual[key] && !force) return false;
+      if (state.values[key] && !force) return false;
+      return true;
+    }
+
+    function ownerPrefixFromSection(section) {
+      if (section === "owner4") return "owner4";
+      if (section === "owner3") return "owner3";
+      if (section === "owner2") return "owner2";
+      if (section === "owner") return "owner";
+      return "";
+    }
+
+    function ownerTargetFromSection(section) {
+      return ownerPrefixFromSection(section) || "business";
     }
 
     function normalizeLabel(label) {
@@ -1192,295 +1449,6 @@
       return true;
     }
 
-    function blankLearningStore() {
-      return {
-        version: 1,
-        aliases: Object.fromEntries(allFields.map(([key]) => [key, []]))
-      };
-    }
-
-    function loadLearningStore() {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(learningStoreKey) || "null");
-        const store = blankLearningStore();
-        if (!parsed || typeof parsed !== "object") return store;
-
-        allFields.forEach(([key]) => {
-          const aliases = Array.isArray(parsed.aliases && parsed.aliases[key]) ? parsed.aliases[key] : [];
-          store.aliases[key] = aliases
-            .map((item) => ({
-              label: cleanLearnedLabel(item && item.label),
-              count: Math.max(1, Number(item && item.count) || 1),
-              lastUsed: Number(item && item.lastUsed) || 0
-            }))
-            .filter((item) => item.label)
-            .slice(0, 20);
-        });
-
-        return store;
-      } catch (error) {
-        return blankLearningStore();
-      }
-    }
-
-    function persistLearningStore() {
-      try {
-        localStorage.setItem(learningStoreKey, JSON.stringify(learnedExtraction));
-      } catch (error) {
-        setStatus("Learning save nahi ho payi - browser storage full/blocked hai");
-      }
-    }
-
-    function escapeRegex(value) {
-      return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    }
-
-    function flexibleLabelPattern(label) {
-      return escapeRegex(cleanLearnedLabel(label)).replace(/\s+/g, "\\s+");
-    }
-
-    function cleanLearnedLabel(label) {
-      const cleaned = cleanOutput(label)
-        .replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9#)]+$/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-      const normalized = normalizeLabel(cleaned);
-
-      if (!cleaned || cleaned.length < 2 || cleaned.length > 60) return "";
-      if (!/[A-Za-z]/.test(cleaned)) return "";
-      if (/^\d+$/.test(cleaned)) return "";
-      if (/^(yes|no|n\/a|none|not applicable)$/i.test(cleaned)) return "";
-      if (normalized.split(" ").length > 8) return "";
-      return cleaned;
-    }
-
-    function learnedAliasList() {
-      return Object.entries(learnedExtraction.aliases || {})
-        .flatMap(([key, aliases]) => (aliases || []).map((alias) => ({
-          key,
-          label: alias.label,
-          pattern: flexibleLabelPattern(alias.label),
-          count: alias.count || 1
-        })))
-        .filter((alias) => alias.label && alias.pattern)
-        .sort((a, b) => b.label.length - a.label.length || b.count - a.count);
-    }
-
-    function learnedValueClean(value) {
-      return cleanOutput(value)
-        .replace(new RegExp(`\\s+\\b(?:${fieldLabelPattern})\\s*[:#-]?\\s*.*$`, "i"), "")
-        .trim();
-    }
-
-    function learnedMatchesFromRow(row) {
-      const matches = [];
-      learnedAliasList().forEach((alias) => {
-        const regex = new RegExp(`(?:^|\\b)${alias.pattern}\\s*(?:[:#-]|\\s{2,})`, "gi");
-        let match;
-        while ((match = regex.exec(row)) !== null) {
-          matches.push({
-            key: alias.key,
-            label: alias.label,
-            index: match.index,
-            end: match.index + match[0].length
-          });
-        }
-      });
-
-      return matches
-        .sort((a, b) => a.index - b.index || b.end - a.end)
-        .filter((match, index, list) => index === 0 || match.index >= list[index - 1].end);
-    }
-
-    function keySectionForLearnedKey(key) {
-      if (/^owner4/.test(key)) return "owner4";
-      if (/^owner3/.test(key)) return "owner3";
-      if (/^owner2/.test(key)) return "owner2";
-      if (/^(owner|ssn)/.test(key)) return "owner";
-      return "business";
-    }
-
-    function applyLearnedPatterns(text, rows) {
-      if (!learnedAliasList().length) return;
-
-      let section = "business";
-      rows.forEach((row, index) => {
-        section = sectionFromLine(row, section);
-        const matches = learnedMatchesFromRow(row);
-
-        matches.forEach((match, matchIndex) => {
-          const nextMatch = matches[matchIndex + 1];
-          const rawValue = row.slice(match.end, nextMatch ? nextMatch.index : row.length);
-          const value = learnedValueClean(rawValue);
-          if (value) {
-            saveValue(match.key, value, { force: true });
-            return;
-          }
-
-          const nextRow = rows[index + 1] || "";
-          if (!nextRow || allLabelRegex.test(nextRow)) return;
-          saveValue(match.key, nextRow, { force: true });
-        });
-
-        if (matches.length) return;
-
-        const exactAlias = learnedAliasList().find((alias) => {
-          const regex = new RegExp(`^\\s*${alias.pattern}\\s*[:#-]?\\s*$`, "i");
-          return regex.test(row);
-        });
-        if (!exactAlias) return;
-
-        const nextRow = rows[index + 1] || "";
-        const expectedSection = keySectionForLearnedKey(exactAlias.key);
-        if (expectedSection !== "business" && section !== expectedSection) section = expectedSection;
-        if (nextRow && !allLabelRegex.test(nextRow)) saveValue(exactAlias.key, nextRow, { force: true });
-      });
-    }
-
-    function valueNeedleForKey(key, value) {
-      if (sensitiveKeys.has(key) || phoneKeys.has(key)) return String(value || "").replace(/\D/g, "");
-      return cleanOutput(value).toLowerCase();
-    }
-
-    function rowContainsValueForKey(row, key, value) {
-      const needle = valueNeedleForKey(key, value);
-      if (!needle) return false;
-      if (sensitiveKeys.has(key) || phoneKeys.has(key)) return numericOcrCleanup(row).replace(/\D/g, "").includes(needle);
-      return cleanOutput(row).toLowerCase().includes(needle);
-    }
-
-    function labelBeforeFieldValue(row, key, value) {
-      const cleanRow = cleanOutput(row);
-      const cleanValue = cleanOutput(value);
-      let index = cleanRow.toLowerCase().indexOf(cleanValue.toLowerCase());
-
-      if (index < 0 && (sensitiveKeys.has(key) || phoneKeys.has(key))) {
-        const needle = valueNeedleForKey(key, value);
-        const digits = numericOcrCleanup(cleanRow).replace(/\D/g, "");
-        const digitIndex = digits.indexOf(needle);
-        if (digitIndex >= 0) {
-          const digitMatch = cleanRow.match(/\d[\d\s().-]{4,}\d/);
-          index = digitMatch ? digitMatch.index : -1;
-        }
-      }
-
-      if (index <= 0) return "";
-      const before = cleanRow.slice(0, index).trim();
-      const colonLabel = before.match(/([A-Za-z][A-Za-z0-9 /()#.&'-]{1,60})\s*[:#-]?\s*$/);
-      if (colonLabel) return cleanLearnedLabel(colonLabel[1]);
-
-      const spaced = before.split(/\s{2,}|\t/).map(cleanLearnedLabel).filter(Boolean);
-      return spaced[spaced.length - 1] || "";
-    }
-
-    function labelsFromPreviousRow(row) {
-      const learnedLabel = cleanLearnedLabel(row);
-      if (!learnedLabel) return [];
-      const knownLabels = labelsFromRow(row).map((match) => cleanLearnedLabel(match.label)).filter(Boolean);
-      return knownLabels.length ? knownLabels : [learnedLabel];
-    }
-
-    function labelLooksCompatibleWithKey(label, key) {
-      const normalized = normalizeLabel(label);
-
-      if (key === "einNumber") {
-        return /(ein|fein|tin|tax|federal|employer|identification)/.test(normalized)
-          && !/(ssn|s sn|social|security)/.test(normalized);
-      }
-      if (key === "ssn" || /^owner[2-4]Ssn$/.test(key)) {
-        return /(ssn|s sn|social|security|sec)/.test(normalized)
-          && !/(ein|fein|tin|tax|federal|employer)/.test(normalized);
-      }
-      if (dateKeys.has(key)) return /(dob|d ob|birth|born)/.test(normalized);
-      if (addressKeys.has(key)) return /(address|street|residential|residence|home|physical|location|premises)/.test(normalized);
-      if (nameKeys.has(key)) return /(name|owner|principal|member|guarantor|signer|merchant|company|business|legal|applicant)/.test(normalized)
-        && !/(tax|ein|tin|ssn|social|birth|dob|address|phone|mail|zip|state|city)/.test(normalized);
-      if (/City$/.test(key)) return normalized === "city" || /\bcity\b/.test(normalized);
-      if (/State$/.test(key)) return normalized === "state" || /\bstate\b/.test(normalized);
-      if (/Zip$/.test(key)) return /(zip|postal)/.test(normalized);
-      if (phoneKeys.has(key)) return /(phone|mobile|telephone|contact)/.test(normalized);
-      if (emailKeys.has(key)) return /(mail|gmail|email)/.test(normalized);
-
-      return true;
-    }
-
-    function findLearningLabelsForValue(rows, key, value) {
-      const labels = new Set();
-
-      rows.forEach((row, index) => {
-        if (!rowContainsValueForKey(row, key, value)) return;
-
-        const inlineLabel = labelBeforeFieldValue(row, key, value);
-        if (inlineLabel) {
-          labels.add(inlineLabel);
-          return;
-        }
-
-        const previousRow = rows[index - 1] || "";
-        labelsFromPreviousRow(previousRow).forEach((label) => labels.add(label));
-      });
-
-      return [...labels].filter((label) => {
-        if (!labelLooksCompatibleWithKey(label, key)) return false;
-        const canonical = canonicalKey(label, keySectionForLearnedKey(key));
-        return !canonical || canonical === key;
-      });
-    }
-
-    function upsertLearnedAlias(key, label) {
-      const cleaned = cleanLearnedLabel(label);
-      if (!cleaned) return false;
-
-      const aliases = learnedExtraction.aliases[key] || [];
-      const normalized = normalizeLabel(cleaned);
-      const existing = aliases.find((alias) => normalizeLabel(alias.label) === normalized);
-
-      if (existing) {
-        existing.count = (existing.count || 1) + 1;
-        existing.lastUsed = Date.now();
-        return "updated";
-      }
-
-      aliases.unshift({ label: cleaned, count: 1, lastUsed: Date.now() });
-      learnedExtraction.aliases[key] = aliases
-        .sort((a, b) => (b.count || 1) - (a.count || 1) || (b.lastUsed || 0) - (a.lastUsed || 0))
-        .slice(0, 20);
-      return "added";
-    }
-
-    function saveLearningFromCurrentDocument() {
-      const text = rawText.value.trim();
-      if (!text) {
-        setStatus("Pehle PDF extract karo, phir learning save hogi");
-        return;
-      }
-
-      const rows = rowsFromText(text);
-      let added = 0;
-      let updated = 0;
-
-      allFields.forEach(([key]) => {
-        if (Object.prototype.hasOwnProperty.call(fixedBusinessContact, key)) return;
-        const value = state.values[key];
-        if (!value) return;
-
-        findLearningLabelsForValue(rows, key, value).forEach((label) => {
-          const result = upsertLearnedAlias(key, label);
-          if (result === "added") added += 1;
-          if (result === "updated") updated += 1;
-        });
-      });
-
-      persistLearningStore();
-      setStatus(added || updated ? `Learning saved - ${added} new, ${updated} reinforced` : "Learning: koi naya label nahi mila");
-    }
-
-    function resetLearnedPatterns() {
-      learnedExtraction = blankLearningStore();
-      persistLearningStore();
-      setStatus("Saved learning reset");
-    }
-
     function splitKnownValuePair(line, firstKey, secondKey) {
       const value = cleanOutput(line);
       if (!value || allLabelRegex.test(value)) return false;
@@ -1630,77 +1598,84 @@
       });
     }
 
-    const tableFieldRules = [
-      { label: "Business Legal Name", key: "businessName" },
-      { label: "Business DBA Name", key: "businessDbaName" },
-      { label: "Business Address", key: "businessAddress" },
-      { label: "Business City", key: "businessCity" },
-      { label: "Business State", key: "businessState" },
-      { label: "Business Zip", key: "businessZip" },
-      { label: "Tax ID / EIN", key: "einNumber" },
-      { label: "Tax ID EIN", key: "einNumber" },
-      { label: "Tax ID", key: "einNumber" },
-      { label: "EIN", key: "einNumber" },
-      { label: "Owner Name", key: "ownerName" },
-      { label: "Owner Address", key: "ownerAddress" },
-      { label: "Owner City", key: "ownerCity" },
-      { label: "Owner State", key: "ownerState" },
-      { label: "Owner Zip", key: "ownerZip" },
-      { label: "Owner DOB", key: "ownerDob" },
-      { label: "DOB", key: "ownerDob" },
-      { label: "SSN", key: "ssn" },
-      { label: "2nd Owner Name", key: "owner2Name" },
-      { label: "2nd Owner Address", key: "owner2Address" },
-      { label: "2nd Owner City", key: "owner2City" },
-      { label: "2nd Owner State", key: "owner2State" },
-      { label: "2nd Owner Zip", key: "owner2Zip" },
-      { label: "2nd Owner DOB", key: "owner2Dob" },
-      { label: "2nd Owner SSN", key: "owner2Ssn" },
-      { label: "3rd Owner Name", key: "owner3Name" },
-      { label: "3rd Owner Address", key: "owner3Address" },
-      { label: "3rd Owner City", key: "owner3City" },
-      { label: "3rd Owner State", key: "owner3State" },
-      { label: "3rd Owner Zip", key: "owner3Zip" },
-      { label: "3rd Owner DOB", key: "owner3Dob" },
-      { label: "3rd Owner SSN", key: "owner3Ssn" },
-      { label: "4th Owner Name", key: "owner4Name" },
-      { label: "4th Owner Address", key: "owner4Address" },
-      { label: "4th Owner City", key: "owner4City" },
-      { label: "4th Owner State", key: "owner4State" },
-      { label: "4th Owner Zip", key: "owner4Zip" },
-      { label: "4th Owner DOB", key: "owner4Dob" },
-      { label: "4th Owner SSN", key: "owner4Ssn" }
-    ].sort((a, b) => b.label.length - a.label.length);
+    const handwritingTableFields = [
+      ["Business Legal Name", "businessName"],
+      ["Business DBA Name", "businessDbaName"],
+      ["Business Address", "businessAddress"],
+      ["Business City", "businessCity"],
+      ["Business State", "businessState"],
+      ["Business Zip", "businessZip"],
+      ["Tax ID / EIN", "einNumber"],
+      ["Tax ID EIN", "einNumber"],
+      ["Tax ID", "einNumber"],
+      ["EIN", "einNumber"],
+      ["Owner Name", "ownerName"],
+      ["Owner Address", "ownerAddress"],
+      ["Owner City", "ownerCity"],
+      ["Owner State", "ownerState"],
+      ["Owner Zip", "ownerZip"],
+      ["Owner DOB", "ownerDob"],
+      ["DOB", "ownerDob"],
+      ["SSN", "ssn"],
+      ["2nd Owner Name", "owner2Name"],
+      ["2nd Owner Address", "owner2Address"],
+      ["2nd Owner City", "owner2City"],
+      ["2nd Owner State", "owner2State"],
+      ["2nd Owner Zip", "owner2Zip"],
+      ["2nd Owner DOB", "owner2Dob"],
+      ["2nd Owner SSN", "owner2Ssn"],
+      ["3rd Owner Name", "owner3Name"],
+      ["3rd Owner Address", "owner3Address"],
+      ["3rd Owner City", "owner3City"],
+      ["3rd Owner State", "owner3State"],
+      ["3rd Owner Zip", "owner3Zip"],
+      ["3rd Owner DOB", "owner3Dob"],
+      ["3rd Owner SSN", "owner3Ssn"],
+      ["4th Owner Name", "owner4Name"],
+      ["4th Owner Address", "owner4Address"],
+      ["4th Owner City", "owner4City"],
+      ["4th Owner State", "owner4State"],
+      ["4th Owner Zip", "owner4Zip"],
+      ["4th Owner DOB", "owner4Dob"],
+      ["4th Owner SSN", "owner4Ssn"]
+    ].map(([label, key]) => ({ label, key })).sort((a, b) => b.label.length - a.label.length);
 
-    function tableFieldMatch(row) {
+    function escapeRegex(value) {
+      return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function tableLabelPattern(label) {
+      return escapeRegex(label).replace(/\s+/g, "\\s+").replace("\\/", "\\s*\\/\\s*");
+    }
+
+    function handwritingTableMatch(row) {
       const text = cleanOutput(row);
       if (!text || /^(?:field|value|field\s+value)$/i.test(text)) return null;
 
-      for (const rule of tableFieldRules) {
-        const labelPattern = flexibleLabelPattern(rule.label);
-        const match = text.match(new RegExp(`^\\s*${labelPattern}\\s*(?:[:#-]|\\s{2,}|\\s+)\\s*(.*?)\\s*$`, "i"));
-        if (!match) continue;
+      for (const rule of handwritingTableFields) {
+        const labelPattern = tableLabelPattern(rule.label);
+        const valueMatch = text.match(new RegExp(`^\\s*${labelPattern}\\s*(?:[:#-]|\\s{2,}|\\s+)\\s*(.*?)\\s*$`, "i"));
+        if (valueMatch) return { ...rule, value: cleanOutput(valueMatch[1]) };
 
-        const value = cleanOutput(match[1]);
-        if (!value || looksLikeOnlyLabels(value)) return { ...rule, value: "" };
-        return { ...rule, value };
+        const labelOnlyMatch = text.match(new RegExp(`^\\s*${labelPattern}\\s*[:#-]?\\s*$`, "i"));
+        if (labelOnlyMatch) return { ...rule, value: "" };
       }
 
       return null;
     }
 
-    function parseTableFieldRows(rows) {
+    function parseHandwritingTableRows(rows) {
       rows.forEach((row, index) => {
-        const match = tableFieldMatch(row);
+        const match = handwritingTableMatch(row);
         if (!match) return;
 
-        if (match.value) {
+        if (match.value && !looksLikeOnlyLabels(match.value)) {
           saveValue(match.key, match.value);
           return;
         }
 
         const nextRow = rows[index + 1] || "";
-        if (!nextRow || tableFieldMatch(nextRow) || allLabelRegex.test(nextRow)) return;
+        if (!nextRow || handwritingTableMatch(nextRow) || allLabelRegex.test(nextRow)) return;
         saveValue(match.key, nextRow);
       });
     }
@@ -2183,6 +2158,7 @@
       ["ownerName", "owner2Name", "owner3Name", "owner4Name"].forEach((key) => {
         if (!state.manual[key]) state.values[key] = cleanOutput(state.values[key]).replace(/\s+Last\s+name\s*$/i, "").trim();
       });
+      if (!state.manual.einNumber) state.values.einNumber = formatEin(state.values.einNumber);
     }
 
     function extractDetailsFromText(text) {
@@ -2192,7 +2168,7 @@
       let section = "business";
 
       parseNextLineLabelRows(rows, section);
-      parseTableFieldRows(rows);
+      parseHandwritingTableRows(rows);
 
       rows.forEach((row) => {
         section = sectionFromLine(row, section);
@@ -2202,7 +2178,6 @@
 
       applyFallbackPatterns(text);
       applyRegexFallbacks(text, rows);
-      applyLearnedPatterns(text, rows);
       applyBridgePointPatterns(text, rows);
       applyBroadwayPatterns(text, rows);
       applyFintekPatterns(text, rows);
@@ -2352,7 +2327,13 @@
       state.file = null;
       fileInput.value = "";
       rawText.value = "";
-      Object.keys(state.values).forEach((key) => state.values[key] = "");
+      pricingScrub.value = "";
+      Object.keys(state.values).forEach((key) => {
+        state.values[key] = "";
+        state.manual[key] = false;
+        state.lowConfidence[key] = false;
+        state.confidenceNotes[key] = "";
+      });
       applyFixedBusinessContact();
       renderFields();
       setFile(null);
@@ -2362,9 +2343,45 @@
 
     fileInput.addEventListener("change", (event) => setFile(event.target.files[0] || null));
     extractBtn.addEventListener("click", processFile);
-    saveLearningBtn.addEventListener("click", saveLearningFromCurrentDocument);
     downloadBtn.addEventListener("click", downloadExcel);
     clearBtn.addEventListener("click", clearAll);
+    pricingScrub.addEventListener("input", updateCreditScrub);
+    copyCreditBtn.addEventListener("click", async () => {
+      const plainText = buildCreditScrubPlain();
+      const htmlText = buildCreditScrubHtml();
+      const selectCreditScrub = () => {
+        const range = document.createRange();
+        range.selectNodeContents(creditScrub);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      };
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/html": new Blob([htmlText], { type: "text/html" }),
+              "text/plain": new Blob([plainText], { type: "text/plain" })
+            })
+          ]);
+        } else {
+          selectCreditScrub();
+          document.execCommand("copy");
+          window.getSelection().removeAllRanges();
+        }
+        setStatus("Credit scrub copied");
+      } catch (error) {
+        selectCreditScrub();
+        try {
+          document.execCommand("copy");
+        } catch (_) {
+        } finally {
+          window.getSelection().removeAllRanges();
+        }
+        setStatus("Credit scrub ready");
+      }
+    });
     rawText.addEventListener("input", () => {
       extractDetailsFromText(rawText.value);
       updateCounts();
