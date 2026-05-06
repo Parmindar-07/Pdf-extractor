@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>Required Details Extractor</title>
+      <title>Hand Writing Credit App</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -40,7 +40,7 @@
     }
 
     .shell {
-      width: min(1180px, calc(100% - 32px));
+      width: min(1560px, calc(100% - 32px));
       margin: 0 auto;
       padding: 28px 0 36px;
     }
@@ -80,9 +80,25 @@
 
     main {
       display: grid;
-      grid-template-columns: 340px 1fr;
+      grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
       gap: 18px;
       align-items: start;
+    }
+
+    .scrub-column {
+      display: grid;
+      gap: 18px;
+      position: sticky;
+      top: 20px;
+      align-self: start;
+    }
+
+    .extractor-column {
+      display: grid;
+      grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+      min-width: 0;
     }
 
     .panel {
@@ -96,6 +112,10 @@
       padding: 18px;
       position: sticky;
       top: 20px;
+    }
+
+    .scrub-panel {
+      padding: 18px;
     }
 
     .dropzone {
@@ -193,6 +213,7 @@
     .content {
       display: grid;
       gap: 18px;
+      min-width: 0;
     }
 
     .section {
@@ -253,6 +274,11 @@
       box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.13);
     }
 
+    .field input.low-confidence {
+      border-color: var(--warn);
+      background: #fff8ed;
+    }
+
     textarea {
       width: 100%;
       min-height: 240px;
@@ -264,6 +290,48 @@
       background: #fbfcfe;
       line-height: 1.45;
       outline: none;
+    }
+
+    .scrub-textarea {
+      min-height: 230px;
+      font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+
+    .scrub-output {
+      width: 100%;
+      min-height: 420px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.45;
+      outline: none;
+      overflow: auto;
+      user-select: text;
+    }
+
+    .scrub-output a {
+      color: #1a0dab;
+      text-decoration: underline;
+    }
+
+    .scrub-output div {
+      min-height: 20px;
+    }
+
+    .mini-btn {
+      min-height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 10px;
+      background: #eef2f7;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 750;
+      cursor: pointer;
     }
 
     progress {
@@ -288,6 +356,17 @@
       line-height: 1.45;
     }
 
+    @media (max-width: 1180px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .scrub-column,
+      .upload-panel {
+        position: static;
+      }
+    }
+
     @media (max-width: 860px) {
       header {
         display: grid;
@@ -299,6 +378,10 @@
       }
 
       main {
+        grid-template-columns: 1fr;
+      }
+
+      .extractor-column {
         grid-template-columns: 1fr;
       }
 
@@ -316,82 +399,103 @@
   <div class="shell">
     <header>
       <div>
-        <h1>Required Details Extractor</h1>
+        <h1>Hand Writing Credit App</h1>
         <p class="subtle">Upload a PDF or image to extract the required business and owner details.</p>
       </div>
       <div class="status" id="status">Ready</div>
     </header>
 
     <main>
-      <aside class="panel upload-panel">
-        <label class="dropzone" id="dropzone">
-          <input id="fileInput" type="file" accept="application/pdf,image/*">
-          <div>
-            <div class="drop-mark">+</div>
-            <p class="drop-title">select PDF / Image</p>
-            <p class="drop-copy" id="fileName">Drag-drop & select your file</p>
+      <aside class="scrub-column">
+        <section class="panel scrub-panel">
+          <div class="section-head">
+            <h2>Pricing Scrub</h2>
           </div>
-        </label>
+          <textarea class="scrub-textarea" id="pricingScrub" spellcheck="false"></textarea>
+        </section>
 
-        <div class="progress-wrap" id="progressWrap">
-          <progress id="progress" value="0" max="100"></progress>
-          <div class="subtle" id="progressText">Processing...</div>
-        </div>
-
-        <div class="actions">
-          <button class="btn" id="extractBtn" disabled>Extract Details</button>
-          <button class="btn secondary" id="downloadBtn" disabled>Download Excel</button>
-          <button class="btn ghost" id="clearBtn">Clear</button>
-        </div>
-
-        <div class="meta">
-          <div>For best results, use a clear, straight, high-resolution scan or image.</div>
-          <div class="warn">Please verify TIN and SSN values before downloading the Excel file.</div>
-        </div>
+        <section class="panel scrub-panel">
+          <div class="section-head">
+            <h2>Credit Scrub</h2>
+            <button class="mini-btn" id="copyCreditBtn" type="button">Copy</button>
+          </div>
+          <div class="scrub-output" id="creditScrub" tabindex="0" aria-label="Credit Scrub"></div>
+        </section>
       </aside>
 
-      <section class="content">
-        <div class="panel section">
-          <div class="section-head">
-            <h2>Business Information</h2>
-            <div class="confidence" id="businessCount">0 fields found</div>
-          </div>
-          <div class="grid" id="businessFields"></div>
-        </div>
+      <section class="extractor-column">
+        <aside class="panel upload-panel">
+          <label class="dropzone" id="dropzone">
+            <input id="fileInput" type="file" accept="application/pdf,image/*">
+            <div>
+              <div class="drop-mark">+</div>
+              <p class="drop-title">select PDF / Image</p>
+              <p class="drop-copy" id="fileName">Drag-drop & select your file</p>
+            </div>
+          </label>
 
-        <div class="panel section">
-          <div class="section-head">
-            <h2>Owner 1 Information</h2>
-            <div class="confidence" id="owner1Count">0 fields found</div>
+          <div class="progress-wrap" id="progressWrap">
+            <progress id="progress" value="0" max="100"></progress>
+            <div class="subtle" id="progressText">Processing...</div>
           </div>
-          <div class="grid" id="owner1Fields"></div>
-        </div>
 
-        <div class="panel section">
-          <div class="section-head">
-            <h2>2nd Owner Information</h2>
-            <div class="confidence" id="owner2Count">0 fields found</div>
+          <div class="actions">
+            <button class="btn" id="extractBtn" disabled>Extract Details</button>
+            <button class="btn ghost" id="saveLearningBtn" disabled>Save Learning</button>
+            <button class="btn secondary" id="downloadBtn" disabled>Download Excel</button>
+            <button class="btn ghost" id="clearBtn">Clear</button>
+            <button class="btn ghost" id="resetLearningBtn" type="button">Reset Learning</button>
           </div>
-          <div class="grid" id="owner2Fields"></div>
-        </div>
 
-        <div class="panel section">
-          <div class="section-head">
-            <h2>3rd Owner Information</h2>
-            <div class="confidence" id="owner3Count">0 fields found</div>
+          <div class="meta">
+            <div>For best results, use a clear, straight, high-resolution scan or image.</div>
+            <div class="warn">Please verify TIN and SSN values before downloading the Excel file.</div>
           </div>
-          <div class="grid" id="owner3Fields"></div>
-        </div>
+        </aside>
 
-        <div class="panel section">
-          <div class="section-head">
-            <h2>4th Owner Information</h2>
-            <div class="confidence" id="owner4Count">0 fields found</div>
+        <section class="content">
+          <div class="panel section">
+            <div class="section-head">
+              <h2>Business Information</h2>
+              <div class="confidence" id="businessCount">0 fields found</div>
+            </div>
+            <div class="grid" id="businessFields"></div>
           </div>
-          <div class="grid" id="owner4Fields"></div>
-        </div>
 
-        <textarea id="rawText" hidden></textarea>
+          <div class="panel section">
+            <div class="section-head">
+              <h2>Owner 1 Information</h2>
+              <div class="confidence" id="owner1Count">0 fields found</div>
+            </div>
+            <div class="grid" id="owner1Fields"></div>
+          </div>
+
+          <div class="panel section">
+            <div class="section-head">
+              <h2>2nd Owner Information</h2>
+              <div class="confidence" id="owner2Count">0 fields found</div>
+            </div>
+            <div class="grid" id="owner2Fields"></div>
+          </div>
+
+          <div class="panel section">
+            <div class="section-head">
+              <h2>3rd Owner Information</h2>
+              <div class="confidence" id="owner3Count">0 fields found</div>
+            </div>
+            <div class="grid" id="owner3Fields"></div>
+          </div>
+
+          <div class="panel section">
+            <div class="section-head">
+              <h2>4th Owner Information</h2>
+              <div class="confidence" id="owner4Count">0 fields found</div>
+            </div>
+            <div class="grid" id="owner4Fields"></div>
+          </div>
+
+          <textarea id="rawText" hidden></textarea>
+        </section>
       </section>
     </main>
   </div>
@@ -456,6 +560,13 @@
       { countId: "owner4Count", containerId: "owner4Fields", fields: owner4Fields }
     ];
     const ownerFields = ownerGroups.flatMap((group) => group.fields);
+    const allFields = [...businessFields, ...ownerFields];
+    const sensitiveKeys = new Set(["einNumber", "ssn", "owner2Ssn", "owner3Ssn", "owner4Ssn"]);
+    const dateKeys = new Set(["ownerDob", "owner2Dob", "owner3Dob", "owner4Dob"]);
+    const phoneKeys = new Set(["businessPhone"]);
+    const emailKeys = new Set(["businessEmail"]);
+    const addressKeys = new Set(["businessAddress", "ownerAddress", "owner2Address", "owner3Address", "owner4Address"]);
+    const nameKeys = new Set(["businessName", "businessDbaName", "ownerName", "owner2Name", "owner3Name", "owner4Name"]);
 
     const fixedBusinessContact = {
       businessPhone: "6468459754",
@@ -464,7 +575,10 @@
 
     const state = {
       file: null,
-      values: Object.fromEntries([...businessFields, ...ownerFields].map(([key]) => [key, ""]))
+      values: Object.fromEntries(allFields.map(([key]) => [key, ""])),
+      manual: Object.fromEntries(allFields.map(([key]) => [key, false])),
+      lowConfidence: Object.fromEntries(allFields.map(([key]) => [key, false])),
+      confidenceNotes: Object.fromEntries(allFields.map(([key]) => [key, ""]))
     };
 
     function applyFixedBusinessContact() {
@@ -481,13 +595,20 @@
     const fileInput = $("fileInput");
     const dropzone = $("dropzone");
     const extractBtn = $("extractBtn");
+    const saveLearningBtn = $("saveLearningBtn");
     const downloadBtn = $("downloadBtn");
     const clearBtn = $("clearBtn");
+    const resetLearningBtn = $("resetLearningBtn");
     const rawText = $("rawText");
     const statusEl = $("status");
     const progressWrap = $("progressWrap");
     const progress = $("progress");
     const progressText = $("progressText");
+    const pricingScrub = $("pricingScrub");
+    const creditScrub = $("creditScrub");
+    const copyCreditBtn = $("copyCreditBtn");
+    const learningStoreKey = "required-details-extractor-learning-v1";
+    let learnedExtraction = loadLearningStore();
 
     function renderFields() {
       renderFieldGroup("businessFields", businessFields);
@@ -504,9 +625,22 @@
         field.innerHTML = `<span>${label}</span><input data-key="${key}" autocomplete="off">`;
         const input = field.querySelector("input");
         input.value = state.values[key] || "";
+        input.classList.toggle("low-confidence", Boolean(state.lowConfidence[key]));
+        input.title = state.lowConfidence[key] ? state.confidenceNotes[key] || "Low confidence extraction - please verify." : "";
         input.addEventListener("input", () => {
           state.values[key] = input.value.trim();
+          state.manual[key] = true;
+          state.lowConfidence[key] = false;
+          state.confidenceNotes[key] = "";
+          input.classList.remove("low-confidence");
+          input.title = "";
           updateCounts();
+        });
+        input.addEventListener("blur", () => {
+          if (key !== "einNumber") return;
+          state.values[key] = formatEin(input.value);
+          input.value = state.values[key];
+          updateCreditScrub();
         });
         container.appendChild(field);
       });
@@ -518,6 +652,7 @@
 
     function providerNameFromText(text) {
       const normalized = normalizeExtractedText(text);
+      if (/Hand\s*Writing\s+Credit\s+App|Business\s+Information[\s\S]*Owner\s+Information/i.test(normalized)) return "Hand Writing Credit App";
       if (/Fintek\s+Capital|Funding\s+Application/i.test(normalized)) return "Fintek";
       if (/Bridge\s*Point\s*Capital|BridgePointCapital|PRE-QUALIFICATION\s+AUTHORIZATION/i.test(normalized)) return "BridgePoint";
       if (isBroadwayLikeText(normalized)) return "Broadway";
@@ -539,6 +674,263 @@
         $(group.countId).textContent = `${groupFound} fields found`;
       });
       downloadBtn.disabled = businessFound + ownerFound === 0;
+      saveLearningBtn.disabled = !rawText.value.trim() || businessFound + ownerFound === 0;
+      updateCreditScrub();
+    }
+
+    function formatEin(value) {
+      const digits = String(value || "").replace(/\D/g, "").slice(0, 9);
+      if (digits.length <= 2) return digits;
+      return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    }
+
+    function previousMonthName(date = new Date()) {
+      const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      return names[(date.getMonth() + 11) % 12];
+    }
+
+    function normalizeRevenueMonth(value) {
+      const key = String(value || "").toLowerCase().replace(/[^a-z]/g, "");
+      const aliases = {
+        jan: "January",
+        january: "January",
+        feb: "February",
+        february: "February",
+        febuary: "February",
+        mar: "March",
+        march: "March",
+        apr: "April",
+        april: "April",
+        may: "May",
+        jun: "June",
+        june: "June",
+        jul: "July",
+        july: "July",
+        aug: "August",
+        august: "August",
+        sep: "September",
+        sept: "September",
+        september: "September",
+        oct: "October",
+        october: "October",
+        nov: "November",
+        november: "November",
+        dec: "December",
+        december: "December"
+      };
+      return aliases[key] || "";
+    }
+
+    function parsePricingScrub(text) {
+      const normalized = String(text || "").replace(/\r/g, "\n");
+      const lines = normalized.split("\n").map((line) => cleanOutput(line)).filter(Boolean);
+      let tier = lines[0] || "";
+      const depositIndex = tier.search(/\bDeposits?(?:\s*\([^)]*\))?\s*:/i);
+      if (depositIndex >= 0) tier = tier.slice(0, depositIndex);
+      if (/^(?:Deposits|Industry|TIB|State|Datamerch|Company\s+Website|Proceed)\b/i.test(tier)) tier = "";
+
+      const readInline = (regex) => {
+        const match = normalized.match(regex);
+        return match ? cleanOutput(match[1]) : "";
+      };
+
+      const website = readInline(/Company\s+Website\s*:\s*([^\n\r]*)/i);
+      const depositsMatch = normalized.match(/\bDeposits?(?:\s*\(([^)]*)\))?\s*:\s*(.*?)(?:,\s*Industry\s*:|\n|\r|$)/i);
+      return {
+        tier: cleanOutput(tier),
+        deposits: depositsMatch ? cleanOutput(depositsMatch[2]) : "",
+        revenueMonth: normalizeRevenueMonth(depositsMatch && depositsMatch[1]) || previousMonthName(),
+        industry: readInline(/Industry\s*:\s*([^,\n\r]*)/i),
+        tib: readInline(/\bTIB\s*:\s*([^,\n\r]*)/i),
+        state: readInline(/\bState\s*:\s*([^,\n\r]*)/i),
+        website: website && !/^not\s+found$/i.test(website) ? website : "Not Found"
+      };
+    }
+
+    function normalizeStateCode(value) {
+      const cleaned = cleanOutput(value).replace(/[^A-Za-z ]/g, " ").replace(/\s+/g, " ").trim();
+      if (!cleaned) return "";
+      const upper = cleaned.toUpperCase();
+      if (stateCodes.has(upper)) return upper;
+      const codeMatch = upper.match(/\b[A-Z]{2}\b/);
+      if (codeMatch && stateCodes.has(codeMatch[0])) return codeMatch[0];
+      return stateNameCodes[upper] || cleaned;
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function searchItem(name, stateValue) {
+      const cleanName = cleanOutput(name);
+      if (!cleanName) return null;
+      const stateCode = normalizeStateCode(stateValue);
+      const query = cleanOutput(`${cleanName} ${stateCode}`);
+      return {
+        text: `${query} Google Search`,
+        href: `https://www.google.com/search?q=${encodeURIComponent(query)}`
+      };
+    }
+
+    function ownerSearchItems(searchState) {
+      return [
+        "ownerName",
+        "owner2Name",
+        "owner3Name",
+        "owner4Name"
+      ]
+        .map((nameKey) => searchItem(state.values[nameKey], searchState))
+        .filter(Boolean);
+    }
+
+    function extractedScrubState() {
+      return state.values.businessState;
+    }
+
+    function creditScrubData() {
+      const pricing = parsePricingScrub(pricingScrub.value);
+      const pdfState = extractedScrubState();
+      const scrubState = pdfState || pricing.state;
+      const searchState = pdfState || pricing.state;
+      const businessSearch = searchItem(state.values.businessName || state.values.businessDbaName, searchState);
+      const peopleSearches = ownerSearchItems(searchState);
+      return {
+        pricing,
+        businessSearch,
+        peopleSearches,
+        infoLines: [
+          `Company Website : ${pricing.website || "Not Found"}`,
+          "",
+          "FICO :",
+          `${pricing.revenueMonth} Revenue : ${pricing.deposits}`,
+          `Industry : ${pricing.industry}`,
+          `TIB : ${pricing.tib}`,
+          `State : ${normalizeStateCode(scrubState)}`,
+          "Datamerch : No Match",
+          "Received : N",
+          `EIN : ${formatEin(state.values.einNumber)}`,
+          "Customer Id :"
+        ]
+      };
+    }
+
+    function buildCreditScrubPlain() {
+      const data = creditScrubData();
+      const lines = [];
+
+      if (data.pricing.tier) lines.push(data.pricing.tier, "");
+      if (data.businessSearch) lines.push(data.businessSearch.text);
+      if (data.businessSearch && data.peopleSearches.length) lines.push("");
+      data.peopleSearches.forEach((item) => lines.push(item.text));
+      if (data.businessSearch || data.peopleSearches.length) lines.push("");
+      lines.push(...data.infoLines);
+
+      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd();
+    }
+
+    function buildCreditScrubHtml() {
+      const data = creditScrubData();
+      const parts = [];
+      const addLine = (line) => parts.push(line ? `<div>${escapeHtml(line)}</div>` : "<br>");
+
+      if (data.pricing.tier) {
+        addLine(data.pricing.tier);
+        addLine("");
+      }
+
+      if (data.businessSearch) {
+        parts.push(`<div><a href="${escapeHtml(data.businessSearch.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(data.businessSearch.text)}</a></div>`);
+      }
+      if (data.businessSearch && data.peopleSearches.length) addLine("");
+      data.peopleSearches.forEach((item) => {
+        parts.push(`<div><a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.text)}</a></div>`);
+      });
+      if (data.businessSearch || data.peopleSearches.length) addLine("");
+      data.infoLines.forEach(addLine);
+
+      return parts.join("");
+    }
+
+    function updateCreditScrub() {
+      if (!creditScrub || !pricingScrub) return;
+      creditScrub.innerHTML = buildCreditScrubHtml();
+    }
+
+    function resetExtractionValues() {
+      allFields.forEach(([key]) => {
+        state.lowConfidence[key] = false;
+        state.confidenceNotes[key] = "";
+        if (!state.manual[key]) state.values[key] = "";
+      });
+      applyFixedBusinessContact();
+    }
+
+    function markLowConfidence(key, note = "Low confidence extraction - please verify.") {
+      if (!key || !state.values[key]) return;
+      state.lowConfidence[key] = true;
+      state.confidenceNotes[key] = note;
+    }
+
+    function clearConfidence(key) {
+      state.lowConfidence[key] = false;
+      state.confidenceNotes[key] = "";
+    }
+
+    function numericOcrCleanup(value) {
+      return String(value || "")
+        .replace(/[OoQ]/g, "0")
+        .replace(/[Il|]/g, "1")
+        .replace(/[Ss]/g, "5")
+        .replace(/[Bb]/g, "8")
+        .replace(/[Zz]/g, "2")
+        .replace(/[Gg]/g, "6");
+    }
+
+    function cleanValueForKey(key, value) {
+      let cleaned = sensitiveKeys.has(key) ? cleanSensitiveNumber(value, key) : cleanOutput(value);
+      if (sensitiveKeys.has(key)) cleaned = cleanSensitiveNumber(numericOcrCleanup(value), key);
+      if (phoneKeys.has(key)) cleaned = cleanPhoneNumber(numericOcrCleanup(value));
+      if (emailKeys.has(key)) cleaned = cleanEmailAddress(value);
+      if (addressKeys.has(key)) cleaned = stripTrailingEmptyLabels(cleaned);
+      if (key === "businessName") cleaned = cleaned.replace(/\s+(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)\s*$/i, "").trim();
+      if (key === "businessDbaName" && /^(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)$/i.test(cleaned)) cleaned = "";
+      if (key === "businessDbaName") cleaned = cleaned.replace(/\s+(?:Owner\(s\)|Owner\s+\d+\s+Information|Owner\s+Information|Officers\(s\)).*$/i, "").trim();
+      if (nameKeys.has(key)) {
+        cleaned = cleaned
+          .replace(/\s+Name\s*\(\s*[2-4](?:nd|rd|th)?\s+Owner\s*\)\s*$/i, "")
+          .replace(/\s+Last\s+name\s*$/i, "")
+          .trim();
+      }
+      if (dateKeys.has(key)) {
+        const normalizedDate = numericOcrCleanup(cleaned).replace(/[.\-]/g, "/");
+        const dateMatch = normalizedDate.match(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/);
+        cleaned = dateMatch ? dateMatch[0] : "";
+      }
+      return cleaned;
+    }
+
+    function canWriteValue(key, force = false) {
+      if (!key) return false;
+      if (state.manual[key] && !force) return false;
+      if (state.values[key] && !force) return false;
+      return true;
+    }
+
+    function ownerPrefixFromSection(section) {
+      if (section === "owner4") return "owner4";
+      if (section === "owner3") return "owner3";
+      if (section === "owner2") return "owner2";
+      if (section === "owner") return "owner";
+      return "";
+    }
+
+    function ownerTargetFromSection(section) {
+      return ownerPrefixFromSection(section) || "business";
     }
 
     function normalizeLabel(label) {
@@ -591,24 +983,67 @@
       "bussness\\s+name",
       "bussnes\\s+name",
       "legal\\s+company\\s+name",
+      "legal\\s+business\\s+name",
+      "merchant(?:\\s+name)?",
+      "merchant\\s+legal\\s+name",
+      "company\\s+name",
+      "corporation\\s+name",
+      "entity\\s+name",
+      "applicant\\s+business",
+      "business\\s+legal\\s+name(?:\\s*\\([^)]*\\))?",
       "business\\s+address",
       "bussness\\s+address",
       "bussnes\\s+address",
       "b\\s*us+n?ness\\s+address",
+      "physical\\s+address(?:\\s*\\([^)]*\\))?",
+      "company\\s+address",
+      "merchant\\s+address",
+      "business\\s+street\\s+address",
+      "street\\s+address",
+      "location\\s+address",
+      "premises\\s+address",
       "business\\s+phone(?:\\s+number)?",
       "business\\s+mobile",
       "business\\s+contact\\s+number",
+      "business\\s+telephone",
+      "company\\s+phone",
+      "merchant\\s+phone",
+      "work\\s+phone",
       "business\\s+(?:e\\s*-?\\s*)?mail",
       "business\\s+gmail",
+      "company\\s+(?:e\\s*-?\\s*)?mail",
+      "merchant\\s+(?:e\\s*-?\\s*)?mail",
+      "contact\\s+(?:e\\s*-?\\s*)?mail",
       "company\\s+name",
       "dba\\s+name",
+      "doing\\s+business\\s+as",
+      "trade\\s+name",
+      "assumed\\s+name",
+      "fictitious\\s+name",
+      "store\\s+name",
       "federal\\s+tax\\s+id",
       "faderl\\s+text\\s+id",
       "fedral\\s+tax\\s+id",
+      "taxpayer\\s+id",
+      "tax\\s+identification(?:\\s+number)?",
+      "business\\s+tax\\s+id",
+      "tax\\s*id(?:\\s*\\([^)]*\\))?\\s*#?",
+      "tin\\s*#?",
       "ein\\s+number",
       "ein",
       "fein",
+      "federal\\s+ein",
+      "employer\\s+identification(?:\\s+number)?",
+      "full\\s+name",
+      "name\\s*\\(\\s*primary\\s+owner\\s*\\)",
       "owner\\s+name",
+      "owner\\s*\\/\\s*officer\\s+name",
+      "officer\\s+name",
+      "principal\\s+name",
+      "member\\s+name",
+      "guarantor\\s+name",
+      "authorized\\s+signer",
+      "primary\\s+owner",
       "2(?:nd)?\\s+owner\\s+name",
       "second\\s+owner\\s+name",
       "3(?:rd)?\\s+owner\\s+name",
@@ -627,7 +1062,9 @@
       "fourth\\s+owner\\s+dob",
       "owner\\s+date\\s+of\\s+birth",
       "date\\s+of\\s+birth",
+      "birth\\s+date",
       "d\\s*ob",
+      "d\\s*o\\s*b",
       "dob",
       "owner\\s+address",
       "2(?:nd)?\\s+owner\\s+address",
@@ -636,6 +1073,9 @@
       "third\\s+owner\\s+address",
       "4(?:th)?\\s+owner\\s+address",
       "fourth\\s+owner\\s+address",
+      "residential\\s+address",
+      "residence\\s+address",
+      "personal\\s+address",
       "home\\s+phone",
       "phone(?:\\s+number)?",
       "mobile",
@@ -644,8 +1084,12 @@
       "(?:e\\s*-?\\s*)?mail",
       "gmail",
       "s\\s*sn",
-      "ssn",
+      "s\\s*s\\s*n",
+      "s\\s*s\\s*i",
+      "ssi\\s+number",
+      "ssn\\s*#?",
       "social\\s+security",
+      "social\\s+security\\s+number\\s*#?",
       "address",
       "state",
       "sate",
@@ -705,22 +1149,22 @@
 
     function sectionFromLine(line, currentSection) {
       const normalized = normalizeLabel(line);
-      if (normalized.includes("owner 4 information") || normalized.includes("4th owner information") || normalized.includes("fourth owner information")) return "owner4";
-      if (normalized.includes("owner 3 information") || normalized.includes("3rd owner information") || normalized.includes("third owner information")) return "owner3";
-      if (normalized.includes("owner 2 information") || normalized.includes("2nd owner information") || normalized.includes("second owner information")) return "owner2";
-      if (normalized.includes("owner 1 information") || normalized.includes("primary owner information")) return "owner";
-      if (normalized.includes("owner information") || normalized.includes("owner info") || normalized.includes("principal information")) return "owner";
-      if (normalized.includes("business information") || normalized.includes("business info") || normalized.includes("company information")) return "business";
+      if (/(?:owner|officer|principal|member|guarantor)\s*(?:information|info|details)?\s*(?:4|fourth|4th)|(?:4|fourth|4th)\s*(?:owner|officer|principal|member|guarantor)/.test(normalized)) return "owner4";
+      if (/(?:owner|officer|principal|member|guarantor)\s*(?:information|info|details)?\s*(?:3|third|3rd)|(?:3|third|3rd)\s*(?:owner|officer|principal|member|guarantor)/.test(normalized)) return "owner3";
+      if (/(?:owner|officer|principal|member|guarantor)\s*(?:information|info|details)?\s*(?:2|second|2nd)|(?:2|second|2nd)\s*(?:owner|officer|principal|member|guarantor)/.test(normalized)) return "owner2";
+      if (/(?:owner|officer|principal|member|guarantor)\s*(?:information|info|details)?\s*(?:1|one|first|primary)|(?:primary|first|1st)\s*(?:owner|officer|principal|member|guarantor)/.test(normalized)) return "owner";
+      if (normalized.includes("owner information") || normalized.includes("owner info") || normalized.includes("principal information") || normalized.includes("officer information") || normalized.includes("guarantor information")) return "owner";
+      if (normalized.includes("business information") || normalized.includes("business info") || normalized.includes("company information") || normalized.includes("merchant information") || normalized.includes("business details") || normalized.includes("company details")) return "business";
       return currentSection;
     }
 
     function parseAddressParts(address, target) {
-      if (!address || state.values[`${target}City`] || state.values[`${target}State`] || state.values[`${target}Zip`]) return;
+      if (!address || (state.values[`${target}City`] && state.values[`${target}State`] && state.values[`${target}Zip`])) return;
       const match = address.match(/,\s*([^,\n]+?)\s*,?\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/i);
       if (match) {
-        state.values[`${target}City`] = match[1].trim();
-        state.values[`${target}State`] = match[2].trim().toUpperCase();
-        state.values[`${target}Zip`] = match[3].trim();
+        saveValue(`${target}City`, match[1].trim());
+        saveValue(`${target}State`, match[2].trim().toUpperCase());
+        saveValue(`${target}Zip`, match[3].trim());
         return;
       }
 
@@ -728,62 +1172,116 @@
       const lastPart = commaParts[commaParts.length - 1] || "";
       const zipMatch = lastPart.match(/\b\d{5,6}(?:-\d{4})?\b/);
       if (commaParts.length >= 3 && zipMatch) {
-        state.values[`${target}City`] = commaParts[commaParts.length - 3];
-        state.values[`${target}State`] = commaParts[commaParts.length - 2];
-        state.values[`${target}Zip`] = zipMatch[0];
+        saveValue(`${target}City`, commaParts[commaParts.length - 3]);
+        saveValue(`${target}State`, normalizeStateCode(commaParts[commaParts.length - 2]));
+        saveValue(`${target}Zip`, zipMatch[0]);
         return;
       }
 
       const looseZip = address.match(/\b\d{5,6}(?:-\d{4})?\b\s*$/);
       if (looseZip) {
-        state.values[`${target}Zip`] = looseZip[0].trim();
+        saveValue(`${target}Zip`, looseZip[0].trim(), { lowConfidence: true, note: "Zip inferred from address ending - please verify." });
         const beforeZip = address.slice(0, looseZip.index).trim().split(/\s+/).filter(Boolean);
         if (beforeZip.length > 1 && !state.values[`${target}City`]) {
-          state.values[`${target}City`] = beforeZip[beforeZip.length - 1];
+          saveValue(`${target}City`, beforeZip[beforeZip.length - 1], { lowConfidence: true, note: "City inferred from address ending - please verify." });
         }
       }
     }
 
     const stateCodes = new Set("AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split(" "));
+    const stateNameCodes = {
+      ALABAMA: "AL",
+      ALASKA: "AK",
+      ARIZONA: "AZ",
+      ARKANSAS: "AR",
+      CALIFORNIA: "CA",
+      CALIFORNIYA: "CA",
+      COLORADO: "CO",
+      CONNECTICUT: "CT",
+      DELAWARE: "DE",
+      FLORIDA: "FL",
+      GEORGIA: "GA",
+      HAWAII: "HI",
+      IDAHO: "ID",
+      ILLINOIS: "IL",
+      INDIANA: "IN",
+      IOWA: "IA",
+      KANSAS: "KS",
+      KENTUCKY: "KY",
+      LOUISIANA: "LA",
+      MAINE: "ME",
+      MARYLAND: "MD",
+      MASSACHUSETTS: "MA",
+      MICHIGAN: "MI",
+      MINNESOTA: "MN",
+      MISSISSIPPI: "MS",
+      MISSOURI: "MO",
+      MONTANA: "MT",
+      NEBRASKA: "NE",
+      NEVADA: "NV",
+      "NEW HAMPSHIRE": "NH",
+      "NEW JERSEY": "NJ",
+      "NEW MEXICO": "NM",
+      "NEW YORK": "NY",
+      "NORTH CAROLINA": "NC",
+      "NORTH DAKOTA": "ND",
+      OHIO: "OH",
+      OKLAHOMA: "OK",
+      OREGON: "OR",
+      PENNSYLVANIA: "PA",
+      "RHODE ISLAND": "RI",
+      "SOUTH CAROLINA": "SC",
+      "SOUTH DAKOTA": "SD",
+      TENNESSEE: "TN",
+      TEXAS: "TX",
+      UTAH: "UT",
+      VERMONT: "VT",
+      VIRGINIA: "VA",
+      WASHINGTON: "WA",
+      "WEST VIRGINIA": "WV",
+      WISCONSIN: "WI",
+      WYOMING: "WY",
+      "DISTRICT OF COLUMBIA": "DC"
+    };
 
     const directFieldRules = [
-      { key: "businessName", section: "business", pattern: /legal\s+company\s+name|business\s+legal\s+name|business\s+name|merchant/i },
-      { key: "businessDbaName", section: "business", pattern: /business\s+dba\s+name|dba\s+name/i },
-      { key: "businessAddress", section: "business", pattern: /business\s+address/i },
+      { key: "businessName", section: "business", pattern: /legal\s+company\s+name|business\s+legal\s+name|legal\s+business\s+name|business\s+name|merchant(?:\s+name)?|company\s+name|corporation\s+name|entity\s+name|applicant\s+business|merchant\s+legal\s+name/i },
+      { key: "businessDbaName", section: "business", pattern: /business\s+dba\s+name|dba\s+name|doing\s+business\s+as|trade\s+name|assumed\s+name|fictitious\s+name|store\s+name/i },
+      { key: "businessAddress", section: "business", pattern: /business\s+address|physical\s+address|company\s+address|merchant\s+address|business\s+street\s+address|street\s+address|location\s+address|premises\s+address/i },
       { key: "businessCity", section: "business", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "businessState", section: "business", pattern: /^state$/i },
       { key: "businessZip", section: "business", pattern: /^zip(?:\s+code)?$/i },
-      { key: "businessPhone", section: "business", pattern: /business\s+phone|business\s+mobile|business\s+contact|^phone(?:\s+number)?$|^mobile$|^telephone$|^contact\s+number$/i },
-      { key: "businessEmail", section: "business", pattern: /business\s+(?:e\s*-?\s*)?mail|business\s+gmail|^(?:e\s*-?\s*)?mail$|^gmail$/i },
-      { key: "einNumber", section: "business", pattern: /tax\s*id|tin|federal\s+tax|ein|fein/i },
-      { key: "owner2Name", section: "owner2", pattern: /^full\s+name$|name\s*\(\s*(?:2(?:nd)?|second)\s+owner|(?:2(?:nd)?|second)\s+owner\s+name|owner\s+2\s+name/i },
-      { key: "owner2Dob", section: "owner2", pattern: /date\s+of\s+birth|dob/i },
-      { key: "owner2Address", section: "owner2", pattern: /home\s+address|owner\s+address|(?:2(?:nd)?|second)\s+owner\s+address/i },
+      { key: "businessPhone", section: "business", pattern: /business\s+phone|business\s+mobile|business\s+contact|business\s+telephone|company\s+phone|merchant\s+phone|work\s+phone|^phone(?:\s+number)?$|^mobile$|^telephone$|^contact\s+number$/i },
+      { key: "businessEmail", section: "business", pattern: /business\s+(?:e\s*-?\s*)?mail|business\s+gmail|company\s+(?:e\s*-?\s*)?mail|merchant\s+(?:e\s*-?\s*)?mail|contact\s+(?:e\s*-?\s*)?mail|^(?:e\s*-?\s*)?mail$|^gmail$/i },
+      { key: "einNumber", section: "business", pattern: /tax\s*id|taxpayer\s+id|tin|federal\s+tax|federal\s+id|employer\s+identification|ein|fein|federal\s+ein|business\s+tax\s+id|tax\s+identification/i },
+      { key: "owner2Name", section: "owner2", pattern: /^full\s+name$|name\s*\(\s*(?:2(?:nd)?|second)\s+owner|(?:2(?:nd)?|second)\s+owner\s+name|owner\s+2\s+name|owner\s*\/\s*officer\s+name|principal\s+name|member\s+name|guarantor\s+name/i },
+      { key: "owner2Dob", section: "owner2", pattern: /date\s+of\s+birth|birth\s+date|dob|d\s*o\s*b/i },
+      { key: "owner2Address", section: "owner2", pattern: /home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address|(?:2(?:nd)?|second)\s+owner\s+address/i },
       { key: "owner2City", section: "owner2", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "owner2State", section: "owner2", pattern: /^state$/i },
       { key: "owner2Zip", section: "owner2", pattern: /^zip(?:\s+code)?$/i },
-      { key: "owner2Ssn", section: "owner2", pattern: /ssn|social\s+security/i },
-      { key: "owner3Name", section: "owner3", pattern: /^full\s+name$|name\s*\(\s*(?:3(?:rd)?|third)\s+owner|(?:3(?:rd)?|third)\s+owner\s+name|owner\s+3\s+name/i },
-      { key: "owner3Dob", section: "owner3", pattern: /date\s+of\s+birth|dob/i },
-      { key: "owner3Address", section: "owner3", pattern: /home\s+address|owner\s+address|(?:3(?:rd)?|third)\s+owner\s+address/i },
+      { key: "owner2Ssn", section: "owner2", pattern: /ssn|s\s*s\s*n|ssi|s\s*s\s*i|social\s+security|social\s+security\s+number/i },
+      { key: "owner3Name", section: "owner3", pattern: /^full\s+name$|name\s*\(\s*(?:3(?:rd)?|third)\s+owner|(?:3(?:rd)?|third)\s+owner\s+name|owner\s+3\s+name|owner\s*\/\s*officer\s+name|principal\s+name|member\s+name|guarantor\s+name/i },
+      { key: "owner3Dob", section: "owner3", pattern: /date\s+of\s+birth|birth\s+date|dob|d\s*o\s*b/i },
+      { key: "owner3Address", section: "owner3", pattern: /home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address|(?:3(?:rd)?|third)\s+owner\s+address/i },
       { key: "owner3City", section: "owner3", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "owner3State", section: "owner3", pattern: /^state$/i },
       { key: "owner3Zip", section: "owner3", pattern: /^zip(?:\s+code)?$/i },
-      { key: "owner3Ssn", section: "owner3", pattern: /ssn|social\s+security/i },
-      { key: "owner4Name", section: "owner4", pattern: /^full\s+name$|name\s*\(\s*(?:4(?:th)?|fourth)\s+owner|(?:4(?:th)?|fourth)\s+owner\s+name|owner\s+4\s+name/i },
-      { key: "owner4Dob", section: "owner4", pattern: /date\s+of\s+birth|dob/i },
-      { key: "owner4Address", section: "owner4", pattern: /home\s+address|owner\s+address|(?:4(?:th)?|fourth)\s+owner\s+address/i },
+      { key: "owner3Ssn", section: "owner3", pattern: /ssn|s\s*s\s*n|ssi|s\s*s\s*i|social\s+security|social\s+security\s+number/i },
+      { key: "owner4Name", section: "owner4", pattern: /^full\s+name$|name\s*\(\s*(?:4(?:th)?|fourth)\s+owner|(?:4(?:th)?|fourth)\s+owner\s+name|owner\s+4\s+name|owner\s*\/\s*officer\s+name|principal\s+name|member\s+name|guarantor\s+name/i },
+      { key: "owner4Dob", section: "owner4", pattern: /date\s+of\s+birth|birth\s+date|dob|d\s*o\s*b/i },
+      { key: "owner4Address", section: "owner4", pattern: /home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address|(?:4(?:th)?|fourth)\s+owner\s+address/i },
       { key: "owner4City", section: "owner4", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "owner4State", section: "owner4", pattern: /^state$/i },
       { key: "owner4Zip", section: "owner4", pattern: /^zip(?:\s+code)?$/i },
-      { key: "owner4Ssn", section: "owner4", pattern: /ssn|social\s+security/i },
-      { key: "ownerName", section: "owner", pattern: /^full\s+name$|name\s*\(\s*primary\s+owner|primary\s+owner|owner\s+name/i },
-      { key: "ownerDob", section: "owner", pattern: /date\s+of\s+birth|dob/i },
-      { key: "ownerAddress", section: "owner", pattern: /home\s+address|owner\s+address/i },
+      { key: "owner4Ssn", section: "owner4", pattern: /ssn|s\s*s\s*n|ssi|s\s*s\s*i|social\s+security|social\s+security\s+number/i },
+      { key: "ownerName", section: "owner", pattern: /^full\s+name$|name\s*\(\s*primary\s+owner|primary\s+owner|owner\s+name|owner\s*\/\s*officer\s+name|officer\s+name|principal\s+name|member\s+name|guarantor\s+name|authorized\s+signer/i },
+      { key: "ownerDob", section: "owner", pattern: /date\s+of\s+birth|birth\s+date|dob|d\s*o\s*b/i },
+      { key: "ownerAddress", section: "owner", pattern: /home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address/i },
       { key: "ownerCity", section: "owner", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "ownerState", section: "owner", pattern: /^state$/i },
       { key: "ownerZip", section: "owner", pattern: /^zip(?:\s+code)?$/i },
-      { key: "ssn", section: "owner", pattern: /ssn|social\s+security/i }
+      { key: "ssn", section: "owner", pattern: /ssn|s\s*s\s*n|ssi|s\s*s\s*i|social\s+security|social\s+security\s+number/i }
     ];
 
     const allLabelRegex = new RegExp(`^\\s*(?:${directFieldRules.map((rule) => rule.pattern.source).join("|")})\\s*:?\\s*$`, "i");
@@ -805,9 +1303,28 @@
         .trim();
     }
 
-    function cleanSensitiveNumber(value) {
-      const cleaned = cleanOutput(value);
-      return cleaned.includes("-") ? cleaned.replace(/[^\d-]/g, "") : cleaned.replace(/\D/g, "");
+    function extractExactDigits(value, length) {
+      const cleaned = numericOcrCleanup(cleanOutput(value));
+      const hyphenPattern = length === 9
+        ? /(?:\b\d{3}-\d{2}-\d{4}|\b\d{2}-\d{7})/
+        : null;
+      const hyphenMatch = hyphenPattern ? cleaned.match(hyphenPattern) : null;
+      if (hyphenMatch) return hyphenMatch[0].replace(/\D/g, "");
+
+      const digitRuns = cleaned.match(/\d+/g) || [];
+      for (const run of digitRuns) {
+        if (run.length === length) return run;
+      }
+
+      const allDigits = cleaned.replace(/\D/g, "");
+      return allDigits.length === length ? allDigits : "";
+    }
+
+    function cleanSensitiveNumber(value, key = "") {
+      const digits = extractExactDigits(value, 9);
+      if (!digits) return "";
+      if (key === "einNumber") return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+      return digits;
     }
 
     function cleanPhoneNumber(value) {
@@ -929,24 +1446,303 @@
         .trim();
     }
 
-    function saveValue(key, value) {
-      let cleaned = key === "ssn" || key === "owner2Ssn" || key === "owner3Ssn" || key === "owner4Ssn" || key === "einNumber" ? cleanSensitiveNumber(value) : cleanOutput(value);
-      if (key.endsWith("Phone")) cleaned = cleanPhoneNumber(value);
-      if (key.endsWith("Email")) cleaned = cleanEmailAddress(value);
-      if (key === "businessName" || key === "businessDbaName" || key === "businessAddress" || key === "ownerAddress" || key === "owner2Address" || key === "owner3Address" || key === "owner4Address") cleaned = stripTrailingEmptyLabels(cleaned);
-      if (key === "ownerName" || key === "owner2Name" || key === "owner3Name" || key === "owner4Name") {
-        cleaned = cleaned
-          .replace(/\s+Name\s*\(\s*[2-4](?:nd|rd|th)?\s+Owner\s*\)\s*$/i, "")
-          .replace(/\s+Last\s+name\s*$/i, "")
-          .trim();
-      }
-      if (key === "ownerDob" || key === "owner2Dob" || key === "owner3Dob" || key === "owner4Dob") {
-        const dateMatch = cleaned.match(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/);
-        cleaned = dateMatch ? dateMatch[0] : "";
-      }
-      if (looksLikeOnlyLabels(cleaned)) return;
-      if (!cleaned || state.values[key]) return;
+    function saveValue(key, value, options = {}) {
+      const cleaned = cleanValueForKey(key, value);
+      if (looksLikeOnlyLabels(cleaned)) return false;
+      if (!cleaned || !canWriteValue(key, Boolean(options.force))) return false;
       state.values[key] = cleaned;
+      if (options.lowConfidence) markLowConfidence(key, options.note);
+      else clearConfidence(key);
+      return true;
+    }
+
+    function blankLearningStore() {
+      return {
+        version: 1,
+        aliases: Object.fromEntries(allFields.map(([key]) => [key, []]))
+      };
+    }
+
+    function loadLearningStore() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(learningStoreKey) || "null");
+        const store = blankLearningStore();
+        if (!parsed || typeof parsed !== "object") return store;
+
+        allFields.forEach(([key]) => {
+          const aliases = Array.isArray(parsed.aliases && parsed.aliases[key]) ? parsed.aliases[key] : [];
+          store.aliases[key] = aliases
+            .map((item) => ({
+              label: cleanLearnedLabel(item && item.label),
+              count: Math.max(1, Number(item && item.count) || 1),
+              lastUsed: Number(item && item.lastUsed) || 0
+            }))
+            .filter((item) => item.label)
+            .slice(0, 20);
+        });
+
+        return store;
+      } catch (error) {
+        return blankLearningStore();
+      }
+    }
+
+    function persistLearningStore() {
+      try {
+        localStorage.setItem(learningStoreKey, JSON.stringify(learnedExtraction));
+      } catch (error) {
+        setStatus("Learning save nahi ho payi - browser storage full/blocked hai");
+      }
+    }
+
+    function escapeRegex(value) {
+      return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function flexibleLabelPattern(label) {
+      return escapeRegex(cleanLearnedLabel(label)).replace(/\s+/g, "\\s+");
+    }
+
+    function cleanLearnedLabel(label) {
+      const cleaned = cleanOutput(label)
+        .replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9#)]+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const normalized = normalizeLabel(cleaned);
+
+      if (!cleaned || cleaned.length < 2 || cleaned.length > 60) return "";
+      if (!/[A-Za-z]/.test(cleaned)) return "";
+      if (/^\d+$/.test(cleaned)) return "";
+      if (/^(yes|no|n\/a|none|not applicable)$/i.test(cleaned)) return "";
+      if (normalized.split(" ").length > 8) return "";
+      return cleaned;
+    }
+
+    function learnedAliasList() {
+      return Object.entries(learnedExtraction.aliases || {})
+        .flatMap(([key, aliases]) => (aliases || []).map((alias) => ({
+          key,
+          label: alias.label,
+          pattern: flexibleLabelPattern(alias.label),
+          count: alias.count || 1
+        })))
+        .filter((alias) => alias.label && alias.pattern)
+        .sort((a, b) => b.label.length - a.label.length || b.count - a.count);
+    }
+
+    function learnedValueClean(value) {
+      return cleanOutput(value)
+        .replace(new RegExp(`\\s+\\b(?:${fieldLabelPattern})\\s*[:#-]?\\s*.*$`, "i"), "")
+        .trim();
+    }
+
+    function learnedMatchesFromRow(row) {
+      const matches = [];
+      learnedAliasList().forEach((alias) => {
+        const regex = new RegExp(`(?:^|\\b)${alias.pattern}\\s*(?:[:#-]|\\s{2,})`, "gi");
+        let match;
+        while ((match = regex.exec(row)) !== null) {
+          matches.push({
+            key: alias.key,
+            label: alias.label,
+            index: match.index,
+            end: match.index + match[0].length
+          });
+        }
+      });
+
+      return matches
+        .sort((a, b) => a.index - b.index || b.end - a.end)
+        .filter((match, index, list) => index === 0 || match.index >= list[index - 1].end);
+    }
+
+    function keySectionForLearnedKey(key) {
+      if (/^owner4/.test(key)) return "owner4";
+      if (/^owner3/.test(key)) return "owner3";
+      if (/^owner2/.test(key)) return "owner2";
+      if (/^(owner|ssn)/.test(key)) return "owner";
+      return "business";
+    }
+
+    function applyLearnedPatterns(text, rows) {
+      if (!learnedAliasList().length) return;
+
+      let section = "business";
+      rows.forEach((row, index) => {
+        section = sectionFromLine(row, section);
+        const matches = learnedMatchesFromRow(row);
+
+        matches.forEach((match, matchIndex) => {
+          const nextMatch = matches[matchIndex + 1];
+          const rawValue = row.slice(match.end, nextMatch ? nextMatch.index : row.length);
+          const value = learnedValueClean(rawValue);
+          if (value) {
+            saveValue(match.key, value, { force: true });
+            return;
+          }
+
+          const nextRow = rows[index + 1] || "";
+          if (!nextRow || allLabelRegex.test(nextRow)) return;
+          saveValue(match.key, nextRow, { force: true });
+        });
+
+        if (matches.length) return;
+
+        const exactAlias = learnedAliasList().find((alias) => {
+          const regex = new RegExp(`^\\s*${alias.pattern}\\s*[:#-]?\\s*$`, "i");
+          return regex.test(row);
+        });
+        if (!exactAlias) return;
+
+        const nextRow = rows[index + 1] || "";
+        const expectedSection = keySectionForLearnedKey(exactAlias.key);
+        if (expectedSection !== "business" && section !== expectedSection) section = expectedSection;
+        if (nextRow && !allLabelRegex.test(nextRow)) saveValue(exactAlias.key, nextRow, { force: true });
+      });
+    }
+
+    function valueNeedleForKey(key, value) {
+      if (sensitiveKeys.has(key) || phoneKeys.has(key)) return String(value || "").replace(/\D/g, "");
+      return cleanOutput(value).toLowerCase();
+    }
+
+    function rowContainsValueForKey(row, key, value) {
+      const needle = valueNeedleForKey(key, value);
+      if (!needle) return false;
+      if (sensitiveKeys.has(key) || phoneKeys.has(key)) return numericOcrCleanup(row).replace(/\D/g, "").includes(needle);
+      return cleanOutput(row).toLowerCase().includes(needle);
+    }
+
+    function labelBeforeFieldValue(row, key, value) {
+      const cleanRow = cleanOutput(row);
+      const cleanValue = cleanOutput(value);
+      let index = cleanRow.toLowerCase().indexOf(cleanValue.toLowerCase());
+
+      if (index < 0 && (sensitiveKeys.has(key) || phoneKeys.has(key))) {
+        const needle = valueNeedleForKey(key, value);
+        const digits = numericOcrCleanup(cleanRow).replace(/\D/g, "");
+        const digitIndex = digits.indexOf(needle);
+        if (digitIndex >= 0) {
+          const digitMatch = cleanRow.match(/\d[\d\s().-]{4,}\d/);
+          index = digitMatch ? digitMatch.index : -1;
+        }
+      }
+
+      if (index <= 0) return "";
+      const before = cleanRow.slice(0, index).trim();
+      const colonLabel = before.match(/([A-Za-z][A-Za-z0-9 /()#.&'-]{1,60})\s*[:#-]?\s*$/);
+      if (colonLabel) return cleanLearnedLabel(colonLabel[1]);
+
+      const spaced = before.split(/\s{2,}|\t/).map(cleanLearnedLabel).filter(Boolean);
+      return spaced[spaced.length - 1] || "";
+    }
+
+    function labelsFromPreviousRow(row) {
+      const learnedLabel = cleanLearnedLabel(row);
+      if (!learnedLabel) return [];
+      const knownLabels = labelsFromRow(row).map((match) => cleanLearnedLabel(match.label)).filter(Boolean);
+      return knownLabels.length ? knownLabels : [learnedLabel];
+    }
+
+    function labelLooksCompatibleWithKey(label, key) {
+      const normalized = normalizeLabel(label);
+
+      if (key === "einNumber") {
+        return /(ein|fein|tin|tax|federal|employer|identification)/.test(normalized)
+          && !/(ssn|s sn|social|security)/.test(normalized);
+      }
+      if (key === "ssn" || /^owner[2-4]Ssn$/.test(key)) {
+        return /(ssn|s sn|social|security|sec)/.test(normalized)
+          && !/(ein|fein|tin|tax|federal|employer)/.test(normalized);
+      }
+      if (dateKeys.has(key)) return /(dob|d ob|birth|born)/.test(normalized);
+      if (addressKeys.has(key)) return /(address|street|residential|residence|home|physical|location|premises)/.test(normalized);
+      if (nameKeys.has(key)) return /(name|owner|principal|member|guarantor|signer|merchant|company|business|legal|applicant)/.test(normalized)
+        && !/(tax|ein|tin|ssn|social|birth|dob|address|phone|mail|zip|state|city)/.test(normalized);
+      if (/City$/.test(key)) return normalized === "city" || /\bcity\b/.test(normalized);
+      if (/State$/.test(key)) return normalized === "state" || /\bstate\b/.test(normalized);
+      if (/Zip$/.test(key)) return /(zip|postal)/.test(normalized);
+      if (phoneKeys.has(key)) return /(phone|mobile|telephone|contact)/.test(normalized);
+      if (emailKeys.has(key)) return /(mail|gmail|email)/.test(normalized);
+
+      return true;
+    }
+
+    function findLearningLabelsForValue(rows, key, value) {
+      const labels = new Set();
+
+      rows.forEach((row, index) => {
+        if (!rowContainsValueForKey(row, key, value)) return;
+
+        const inlineLabel = labelBeforeFieldValue(row, key, value);
+        if (inlineLabel) {
+          labels.add(inlineLabel);
+          return;
+        }
+
+        const previousRow = rows[index - 1] || "";
+        labelsFromPreviousRow(previousRow).forEach((label) => labels.add(label));
+      });
+
+      return [...labels].filter((label) => {
+        if (!labelLooksCompatibleWithKey(label, key)) return false;
+        const canonical = canonicalKey(label, keySectionForLearnedKey(key));
+        return !canonical || canonical === key;
+      });
+    }
+
+    function upsertLearnedAlias(key, label) {
+      const cleaned = cleanLearnedLabel(label);
+      if (!cleaned) return false;
+
+      const aliases = learnedExtraction.aliases[key] || [];
+      const normalized = normalizeLabel(cleaned);
+      const existing = aliases.find((alias) => normalizeLabel(alias.label) === normalized);
+
+      if (existing) {
+        existing.count = (existing.count || 1) + 1;
+        existing.lastUsed = Date.now();
+        return "updated";
+      }
+
+      aliases.unshift({ label: cleaned, count: 1, lastUsed: Date.now() });
+      learnedExtraction.aliases[key] = aliases
+        .sort((a, b) => (b.count || 1) - (a.count || 1) || (b.lastUsed || 0) - (a.lastUsed || 0))
+        .slice(0, 20);
+      return "added";
+    }
+
+    function saveLearningFromCurrentDocument() {
+      const text = rawText.value.trim();
+      if (!text) {
+        setStatus("Pehle PDF extract karo, phir learning save hogi");
+        return;
+      }
+
+      const rows = rowsFromText(text);
+      let added = 0;
+      let updated = 0;
+
+      allFields.forEach(([key]) => {
+        if (Object.prototype.hasOwnProperty.call(fixedBusinessContact, key)) return;
+        const value = state.values[key];
+        if (!value) return;
+
+        findLearningLabelsForValue(rows, key, value).forEach((label) => {
+          const result = upsertLearnedAlias(key, label);
+          if (result === "added") added += 1;
+          if (result === "updated") updated += 1;
+        });
+      });
+
+      persistLearningStore();
+      setStatus(added || updated ? `Learning saved - ${added} new, ${updated} reinforced` : "Learning: koi naya label nahi mila");
+    }
+
+    function resetLearnedPatterns() {
+      learnedExtraction = blankLearningStore();
+      persistLearningStore();
+      setStatus("Saved learning reset");
     }
 
     function splitKnownValuePair(line, firstKey, secondKey) {
@@ -989,9 +1785,9 @@
       const pair = splitBusinessNamePair(state.values.businessDbaName || state.values.businessName);
       if (!pair) return;
 
-      if (!state.values.businessName) state.values.businessName = cleanOutput(pair[0]);
-      if (!state.values.businessDbaName || state.values.businessDbaName === cleanOutput(pair.join(" "))) {
-        state.values.businessDbaName = cleanOutput(pair[1]);
+      if (!state.values.businessName && !state.manual.businessName) saveValue("businessName", pair[0]);
+      if ((!state.values.businessDbaName || state.values.businessDbaName === cleanOutput(pair.join(" "))) && !state.manual.businessDbaName) {
+        forceValue("businessDbaName", pair[1]);
       }
     }
 
@@ -1015,10 +1811,45 @@
       return false;
     }
 
+    function labelsFromRow(row) {
+      const labelRegex = new RegExp(`\\b(${fieldLabelPattern})\\s*:`, "gi");
+      return [...String(row || "").matchAll(labelRegex)].map((match) => ({
+        label: cleanOutput(match[1]),
+        index: match.index
+      }));
+    }
+
+    function splitNextLineValuesByRules(valueLine, rules) {
+      const value = cleanOutput(valueLine);
+      if (!value) return [];
+
+      const targets = rules.map((rule) => rule.section.startsWith("owner") ? rule.section : "business");
+      if (rules.length >= 2 && rules.every((rule) => /(City|State|Zip)$/.test(rule.key))) {
+        const target = targets[0];
+        if (targets.every((item) => item === target) && parseCityStateZip(value, target)) return [];
+      }
+
+      const spacedParts = value.split(/\s{2,}|\t/).map(cleanOutput).filter(Boolean);
+      if (spacedParts.length >= rules.length) return spacedParts;
+
+      if (rules.length === 2 && rules[0].key === "businessName" && rules[1].key === "businessDbaName") {
+        const pair = splitBusinessNamePair(value);
+        if (pair) return pair;
+      }
+
+      const dateMatches = [...numericOcrCleanup(value).replace(/[.\-]/g, "/").matchAll(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g)].map((match) => match[0]);
+      if (dateMatches.length >= rules.length && rules.every((rule) => dateKeys.has(rule.key))) return dateMatches;
+
+      const sensitiveMatches = [...numericOcrCleanup(value).matchAll(/\b\d{3}-\d{2}-\d{4}\b|\b\d{2}-\d{7}\b|\b\d{9}\b/g)].map((match) => match[0]);
+      if (sensitiveMatches.length >= rules.length && rules.every((rule) => sensitiveKeys.has(rule.key))) return sensitiveMatches;
+
+      return rules.length === 1 ? [value] : spacedParts;
+    }
+
     function parseInlineFields(line, currentSection) {
       let section = currentSection;
       let matched = false;
-      const labelRegex = /((?:Legal\s+Company\s+Name|Business\s+Legal\s+Name(?:\s*\([^)]*\))?|Business\s+DBA\s+Name|DBA\s+Name|Business\s+Address|Business\s+Phone(?:\s+Number)?|Business\s+Mobile|Business\s+Contact\s+Number|Business\s+(?:E\s*-?\s*)?Mail|Business\s+Gmail|City\s*\/\s*State\s*\/\s*ZIP|City|State|Zip\s+Code|Zip|Tax\s*ID(?:\s*\([^)]*\))?\s*#?|EIN|Full\s+Name|Name\s*\([^)]*Owner[^)]*\)|(?:2(?:nd)?|Second|3(?:rd)?|Third|4(?:th)?|Fourth)\s+Owner\s+Name|Owner\s+[2-4]\s+Name|Title|Ownership\s+Percent|%?\s*of\s+Ownership|Date\s+of\s+Birth|(?:2(?:nd)?|Second|3(?:rd)?|Third|4(?:th)?|Fourth)\s+Owner\s+DOB|Home\s+Address|(?:2(?:nd)?|Second|3(?:rd)?|Third|4(?:th)?|Fourth)\s+Owner\s+Address|Apt\s*\/\s*Suite\s*\/\s*Floor|Home\s+Phone|Phone(?:\s+Number)?|Mobile|Telephone|Contact\s+Number|(?:E\s*-?\s*)?Mail|Gmail|SSN#?))\s*:/gi;
+      const labelRegex = new RegExp(`\\b(${fieldLabelPattern})\\s*:`, "gi");
       const matches = [...line.matchAll(labelRegex)];
 
       matches.forEach((match, index) => {
@@ -1047,7 +1878,7 @@
 
       rows.forEach((row, index) => {
         section = sectionFromLine(row, section);
-        const labelsOnly = [...row.matchAll(/([^:]+):/g)].map((match) => cleanOutput(match[1]));
+        const labelsOnly = labelsFromRow(row).map((match) => match.label);
         if (labelsOnly.length < 2) return;
 
         const rules = labelsOnly.map((label) => fieldRuleForLabel(label, section)).filter(Boolean);
@@ -1056,10 +1887,85 @@
 
         if (splitKnownValuePair(nextRow, rules[0].key, rules[1].key)) return;
 
-        const parts = nextRow.split(/\s{2,}|\t/).map(cleanOutput).filter(Boolean);
+        const parts = splitNextLineValuesByRules(nextRow, rules);
         if (parts.length >= rules.length) {
           rules.forEach((rule, partIndex) => saveValue(rule.key, parts[partIndex]));
         }
+      });
+    }
+
+    const tableFieldRules = [
+      { label: "Business Legal Name", key: "businessName" },
+      { label: "Business DBA Name", key: "businessDbaName" },
+      { label: "Business Address", key: "businessAddress" },
+      { label: "Business City", key: "businessCity" },
+      { label: "Business State", key: "businessState" },
+      { label: "Business Zip", key: "businessZip" },
+      { label: "Tax ID / EIN", key: "einNumber" },
+      { label: "Tax ID EIN", key: "einNumber" },
+      { label: "Tax ID", key: "einNumber" },
+      { label: "EIN", key: "einNumber" },
+      { label: "Owner Name", key: "ownerName" },
+      { label: "Owner Address", key: "ownerAddress" },
+      { label: "Owner City", key: "ownerCity" },
+      { label: "Owner State", key: "ownerState" },
+      { label: "Owner Zip", key: "ownerZip" },
+      { label: "Owner DOB", key: "ownerDob" },
+      { label: "DOB", key: "ownerDob" },
+      { label: "SSN", key: "ssn" },
+      { label: "2nd Owner Name", key: "owner2Name" },
+      { label: "2nd Owner Address", key: "owner2Address" },
+      { label: "2nd Owner City", key: "owner2City" },
+      { label: "2nd Owner State", key: "owner2State" },
+      { label: "2nd Owner Zip", key: "owner2Zip" },
+      { label: "2nd Owner DOB", key: "owner2Dob" },
+      { label: "2nd Owner SSN", key: "owner2Ssn" },
+      { label: "3rd Owner Name", key: "owner3Name" },
+      { label: "3rd Owner Address", key: "owner3Address" },
+      { label: "3rd Owner City", key: "owner3City" },
+      { label: "3rd Owner State", key: "owner3State" },
+      { label: "3rd Owner Zip", key: "owner3Zip" },
+      { label: "3rd Owner DOB", key: "owner3Dob" },
+      { label: "3rd Owner SSN", key: "owner3Ssn" },
+      { label: "4th Owner Name", key: "owner4Name" },
+      { label: "4th Owner Address", key: "owner4Address" },
+      { label: "4th Owner City", key: "owner4City" },
+      { label: "4th Owner State", key: "owner4State" },
+      { label: "4th Owner Zip", key: "owner4Zip" },
+      { label: "4th Owner DOB", key: "owner4Dob" },
+      { label: "4th Owner SSN", key: "owner4Ssn" }
+    ].sort((a, b) => b.label.length - a.label.length);
+
+    function tableFieldMatch(row) {
+      const text = cleanOutput(row);
+      if (!text || /^(?:field|value|field\s+value)$/i.test(text)) return null;
+
+      for (const rule of tableFieldRules) {
+        const labelPattern = flexibleLabelPattern(rule.label);
+        const match = text.match(new RegExp(`^\\s*${labelPattern}\\s*(?:[:#-]|\\s{2,}|\\s+)\\s*(.*?)\\s*$`, "i"));
+        if (!match) continue;
+
+        const value = cleanOutput(match[1]);
+        if (!value || looksLikeOnlyLabels(value)) return { ...rule, value: "" };
+        return { ...rule, value };
+      }
+
+      return null;
+    }
+
+    function parseTableFieldRows(rows) {
+      rows.forEach((row, index) => {
+        const match = tableFieldMatch(row);
+        if (!match) return;
+
+        if (match.value) {
+          saveValue(match.key, match.value);
+          return;
+        }
+
+        const nextRow = rows[index + 1] || "";
+        if (!nextRow || tableFieldMatch(nextRow) || allLabelRegex.test(nextRow)) return;
+        saveValue(match.key, nextRow);
       });
     }
 
@@ -1111,7 +2017,7 @@
 
         saveValue(`${prefix}Name`, ownerGet(new RegExp(`Name\\s*\\(\\s*(?:Primary|${ordinal})\\s+Owner\\s*\\)\\s*:\\s*(.*?)\\s*(?=Title|Ownership|Date\\s+of\\s+Birth|Home\\s+Address|SSN|Home\\s+Phone|Phone|Email|Gmail|$)`, "i")));
         if (position.number > 1) saveValue(`${prefix}Name`, ownerGet(new RegExp(`(?:${ordinal})\\s+Owner\\s+Name\\s*:\\s*(.*?)\\s*(?=Title|Ownership|Date\\s+of\\s+Birth|Home\\s+Address|SSN|Home\\s+Phone|Phone|Email|Gmail|$)`, "i")));
-        saveValue(`${prefix}Name`, ownerGet(/Full\s+Name\s*:\s*(.*?)\s*(?=Ownership\s+Percent|Date\s+of\s+Birth|SSN|Home\s+Address|$)/i));
+        saveValue(`${prefix}Name`, ownerGet(/Full\s+Name\s*:\s*(.*?)\s*(?=Ownership\s+Percent|Date\s+of\s+Birth|Birth\s+Date|DOB|SSN|Social\s+Security|Home\s+Address|Street\s+Address|Residential\s+Address|$)/i));
         saveValue(`${prefix}Dob`, ownerGet(/Date\s+of\s+Birth\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i));
         saveValue(`${prefix}Address`, ownerGet(/Home\s+Address\s*:\s*(.*?)\s*(?=City\s*:|City\s*\/\s*State\s*\/\s*ZIP|State\s*:|Zip\s*:|SSN|Home\s+Phone|Phone|Email|Gmail|$)/i));
         if (position.number > 1) saveValue(`${prefix}Address`, ownerGet(new RegExp(`(?:${ordinal})\\s+Owner\\s+Address\\s*:\\s*(.*?)\\s*(?=City\\s*:|State\\s*:|Zip\\s+Code|Zip\\s*:|SSN|Home\\s+Phone|Phone|Email|Gmail|$)`, "i")));
@@ -1127,24 +2033,139 @@
       });
     }
 
-    function forceValue(key, value) {
-      let cleaned = key === "ssn" || key === "owner2Ssn" || key === "owner3Ssn" || key === "owner4Ssn" || key === "einNumber" ? cleanSensitiveNumber(value) : cleanOutput(value);
-      if (key === "businessName") cleaned = cleaned.replace(/\s+(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)\s*$/i, "").trim();
-      if (key === "businessDbaName" && /^(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)$/i.test(cleaned)) cleaned = "";
-      if (key === "businessDbaName") cleaned = cleaned.replace(/\s+(?:Owner\(s\)|Owner\s+\d+\s+Information|Owner\s+Information|Officers\(s\)).*$/i, "").trim();
-      if (key === "businessName" || key === "businessDbaName" || key === "businessAddress" || key === "ownerAddress" || key === "owner2Address" || key === "owner3Address" || key === "owner4Address") cleaned = stripTrailingEmptyLabels(cleaned);
-      if (key === "ownerName" || key === "owner2Name" || key === "owner3Name" || key === "owner4Name") {
-        cleaned = cleaned
-          .replace(/\s+Name\s*\(\s*[2-4](?:nd|rd|th)?\s+Owner\s*\)\s*$/i, "")
-          .replace(/\s+Last\s+name\s*$/i, "")
-          .trim();
+    function ownerKeysForNumber(number) {
+      if (number === 1) return { prefix: "owner", ssnKey: "ssn" };
+      return { prefix: `owner${number}`, ssnKey: `owner${number}Ssn` };
+    }
+
+    function ownerFieldKeys(number) {
+      const { prefix, ssnKey } = ownerKeysForNumber(number);
+      return {
+        name: `${prefix}Name`,
+        dob: `${prefix}Dob`,
+        address: `${prefix}Address`,
+        city: `${prefix}City`,
+        state: `${prefix}State`,
+        zip: `${prefix}Zip`,
+        ssn: ssnKey
+      };
+    }
+
+    function clearExtractedField(key) {
+      if (state.manual[key]) return;
+      state.values[key] = "";
+      clearConfidence(key);
+    }
+
+    function clearOwnerGroup(number) {
+      Object.values(ownerFieldKeys(number)).forEach(clearExtractedField);
+    }
+
+    function pruneOwnerNoise() {
+      const seenSsns = new Set();
+      const seenOwnerFingerprints = new Set();
+
+      [1, 2, 3, 4].forEach((number) => {
+        const keys = ownerFieldKeys(number);
+        const ssnDigits = String(state.values[keys.ssn] || "").replace(/\D/g, "");
+        if (ssnDigits && seenSsns.has(ssnDigits)) clearExtractedField(keys.ssn);
+        if (ssnDigits && !seenSsns.has(ssnDigits)) seenSsns.add(ssnDigits);
+
+        const identityParts = [state.values[keys.name], state.values[keys.address], state.values[keys.ssn]]
+          .map((value) => normalizeLabel(value || ""))
+          .filter(Boolean);
+        const fingerprint = identityParts.join("|");
+        if (fingerprint && seenOwnerFingerprints.has(fingerprint)) {
+          clearOwnerGroup(number);
+          return;
+        }
+        if (fingerprint) seenOwnerFingerprints.add(fingerprint);
+
+        const hasIdentity = Boolean(state.values[keys.name] || state.values[keys.address] || state.values[keys.ssn]);
+        const hasOnlyLooseData = Boolean(state.values[keys.dob] || state.values[keys.city] || state.values[keys.state] || state.values[keys.zip]);
+        if (!hasIdentity && hasOnlyLooseData) clearOwnerGroup(number);
+
+        const hasNameOrAddress = Boolean(state.values[keys.name] || state.values[keys.address]);
+        if (!hasNameOrAddress && state.values[keys.ssn] && number > 1) clearOwnerGroup(number);
+      });
+    }
+
+    function parseLabeledCityStateZip(text, target, lowConfidence = false) {
+      const cityStateZip = cleanOutput(text).match(/\bCity\s*:?\s*([A-Za-z .'-]+?)\s+(?:State|ST)\s*:?\s*([A-Z]{2}|[A-Za-z ]{4,})\s+Zip(?:\s+Code)?\s*:?\s*(\d{5}(?:-\d{4})?)/i);
+      if (cityStateZip) {
+        const options = lowConfidence ? { lowConfidence: true, note: "City/state/zip inferred from fallback parser - please verify." } : {};
+        saveValue(`${target}City`, cityStateZip[1], options);
+        saveValue(`${target}State`, normalizeStateCode(cityStateZip[2]), options);
+        saveValue(`${target}Zip`, cityStateZip[3], options);
+        return true;
       }
-      if (key === "ownerDob" || key === "owner2Dob" || key === "owner3Dob" || key === "owner4Dob") {
-        const dateMatch = cleaned.match(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/);
-        cleaned = dateMatch ? dateMatch[0] : "";
+
+      const compactCityStateZip = cleanOutput(text).match(/\b([A-Za-z .'-]{2,40}),?\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\b/);
+      if (compactCityStateZip) {
+        const options = { lowConfidence: true, note: "City/state/zip inferred from nearby text - please verify." };
+        saveValue(`${target}City`, compactCityStateZip[1], options);
+        saveValue(`${target}State`, compactCityStateZip[2].toUpperCase(), options);
+        saveValue(`${target}Zip`, compactCityStateZip[3], options);
+        return true;
       }
-      if (looksLikeOnlyLabels(cleaned)) cleaned = "";
+
+      return false;
+    }
+
+    function applyRegexFallbacks(text, rows) {
+      const normalized = normalizeExtractedText(text);
+      const flat = normalized.replace(/\r?\n+/g, " ").replace(/\s+/g, " ").trim();
+      const fallbackNote = "Fallback regex match - please verify.";
+
+      const emailMatch = flat.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      if (emailMatch) saveValue("businessEmail", emailMatch[0], { lowConfidence: true, note: fallbackNote });
+
+      const phoneMatch = flat.match(/(?:Business|Company|Merchant|Office|Work|Phone|Telephone|Contact)[^A-Z0-9]{0,12}(\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/i);
+      if (phoneMatch) saveValue("businessPhone", phoneMatch[1], { lowConfidence: true, note: fallbackNote });
+
+      const einMatch = numericOcrCleanup(flat).match(/\b(?:EIN|FEIN|TIN|Federal\s+Tax\s+ID|Tax\s+ID|Taxpayer\s+ID)\s*#?\s*:?\s*(\d{2}-?\d{7})\b/i);
+      if (einMatch) saveValue("einNumber", einMatch[1], { lowConfidence: /[OISl|]/.test(einMatch[0]), note: "Tax ID matched after OCR cleanup - please verify." });
+
+      let ownerFallbackSection = "business";
+      rows.forEach((row) => {
+        ownerFallbackSection = sectionFromLine(row, ownerFallbackSection);
+        const section = ownerFallbackSection;
+        if (section === "business") return;
+        const target = ownerTargetFromSection(section);
+        const { prefix, ssnKey } = ownerKeysForNumber(target === "owner4" ? 4 : target === "owner3" ? 3 : target === "owner2" ? 2 : 1);
+        const normalizedRow = normalizeLabel(row);
+        const cleanedRow = numericOcrCleanup(row);
+        const dobMatch = /date of birth|birth date|\bdob\b|d o b/.test(normalizedRow)
+          ? cleanedRow.replace(/[.\-]/g, "/").match(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/)
+          : null;
+        const ssnMatch = /ssn|s sn|s s n|ssi|social security/.test(normalizedRow)
+          ? cleanedRow.match(/\b\d{3}-\d{2}-\d{4}\b|\b\d{9}\b/)
+          : null;
+        if (dobMatch) saveValue(`${prefix}Dob`, dobMatch[0], { lowConfidence: true, note: fallbackNote });
+        if (ssnMatch) saveValue(ssnKey, ssnMatch[0], { lowConfidence: true, note: fallbackNote });
+      });
+
+      let section = "business";
+      rows.forEach((row) => {
+        section = sectionFromLine(row, section);
+        parseLabeledCityStateZip(row, ownerTargetFromSection(section), true);
+      });
+    }
+
+    function forceValue(key, value, options = {}) {
+      const cleaned = cleanValueForKey(key, value);
+      if (state.manual[key]) return false;
+      if (!cleaned || looksLikeOnlyLabels(cleaned)) {
+        if (options.allowBlank && !state.manual[key]) {
+          state.values[key] = "";
+          clearConfidence(key);
+        }
+        return false;
+      }
       state.values[key] = cleaned;
+      if (options.lowConfidence) markLowConfidence(key, options.note);
+      else clearConfidence(key);
+      return true;
     }
 
     function valueAfterLabel(row, labelRegex, stopRegex) {
@@ -1261,7 +2282,7 @@
       }
 
       if (ownerNameRow && /Name\s*\(\s*2(?:nd)?\s+Owner\s*\)\s*:?\s*$/i.test(ownerNameRow)) {
-        owner2Fields.forEach(([key]) => forceValue(key, ""));
+        owner2Fields.forEach(([key]) => forceValue(key, "", { allowBlank: true }));
       }
     }
 
@@ -1413,25 +2434,30 @@
     }
 
     function sanitizeExtractedValues() {
-      state.values.businessDbaName = cleanOutput(state.values.businessDbaName)
-        .replace(/\s+(?:Owner\(s\)|Owner\s+\d+\s+Information|Owner\s+Information|Officers\(s\)).*$/i, "")
-        .trim();
-      state.values.businessName = cleanOutput(state.values.businessName)
-        .replace(/\s+(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)\s*$/i, "")
-        .trim();
+      if (!state.manual.businessDbaName) {
+        state.values.businessDbaName = cleanOutput(state.values.businessDbaName)
+          .replace(/\s+(?:Owner\(s\)|Owner\s+\d+\s+Information|Owner\s+Information|Officers\(s\)).*$/i, "")
+          .trim();
+      }
+      if (!state.manual.businessName) {
+        state.values.businessName = cleanOutput(state.values.businessName)
+          .replace(/\s+(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)\s*$/i, "")
+          .trim();
+      }
       ["ownerName", "owner2Name", "owner3Name", "owner4Name"].forEach((key) => {
-        state.values[key] = cleanOutput(state.values[key]).replace(/\s+Last\s+name\s*$/i, "").trim();
+        if (!state.manual[key]) state.values[key] = cleanOutput(state.values[key]).replace(/\s+Last\s+name\s*$/i, "").trim();
       });
+      if (!state.manual.einNumber) state.values.einNumber = formatEin(state.values.einNumber);
     }
 
     function extractDetailsFromText(text) {
-      Object.keys(state.values).forEach((key) => state.values[key] = "");
-      applyFixedBusinessContact();
+      resetExtractionValues();
 
       const rows = rowsFromText(text);
       let section = "business";
 
       parseNextLineLabelRows(rows, section);
+      parseTableFieldRows(rows);
 
       rows.forEach((row) => {
         section = sectionFromLine(row, section);
@@ -1440,6 +2466,8 @@
       });
 
       applyFallbackPatterns(text);
+      applyRegexFallbacks(text, rows);
+      applyLearnedPatterns(text, rows);
       applyBridgePointPatterns(text, rows);
       applyBroadwayPatterns(text, rows);
       applyFintekPatterns(text, rows);
@@ -1449,11 +2477,13 @@
       parseAddressParts(state.values.owner2Address, "owner2");
       parseAddressParts(state.values.owner3Address, "owner3");
       parseAddressParts(state.values.owner4Address, "owner4");
+      pruneOwnerNoise();
       sanitizeExtractedValues();
 
       renderFields();
       updateCounts();
-      setStatus(`${providerNameFromText(text)} details extracted`);
+      const lowCount = Object.values(state.lowConfidence).filter(Boolean).length;
+      setStatus(`${providerNameFromText(text)} details extracted${lowCount ? ` - ${lowCount} low confidence` : ""}`);
     }
 
     async function extractPdfText(file) {
@@ -1518,6 +2548,7 @@
 
     function downloadExcel() {
       applyFixedBusinessContact();
+      state.values.einNumber = formatEin(state.values.einNumber);
       const workbook = XLSX.utils.book_new();
       const rows = [
         ["Business Legal Name", state.values.businessName, "", "", ""],
@@ -1586,17 +2617,63 @@
       state.file = null;
       fileInput.value = "";
       rawText.value = "";
-      Object.keys(state.values).forEach((key) => state.values[key] = "");
+      pricingScrub.value = "";
+      Object.keys(state.values).forEach((key) => {
+        state.values[key] = "";
+        state.manual[key] = false;
+        state.lowConfidence[key] = false;
+        state.confidenceNotes[key] = "";
+      });
       applyFixedBusinessContact();
       renderFields();
       setFile(null);
       setProgress(false);
+      updateCreditScrub();
     }
 
     fileInput.addEventListener("change", (event) => setFile(event.target.files[0] || null));
     extractBtn.addEventListener("click", processFile);
+    saveLearningBtn.addEventListener("click", saveLearningFromCurrentDocument);
     downloadBtn.addEventListener("click", downloadExcel);
     clearBtn.addEventListener("click", clearAll);
+    resetLearningBtn.addEventListener("click", resetLearnedPatterns);
+    pricingScrub.addEventListener("input", updateCreditScrub);
+    copyCreditBtn.addEventListener("click", async () => {
+      const plainText = buildCreditScrubPlain();
+      const htmlText = buildCreditScrubHtml();
+      const selectCreditScrub = () => {
+        const range = document.createRange();
+        range.selectNodeContents(creditScrub);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      };
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/html": new Blob([htmlText], { type: "text/html" }),
+              "text/plain": new Blob([plainText], { type: "text/plain" })
+            })
+          ]);
+        } else {
+          selectCreditScrub();
+          document.execCommand("copy");
+          window.getSelection().removeAllRanges();
+        }
+        setStatus("Credit scrub copied");
+      } catch (error) {
+        selectCreditScrub();
+        try {
+          document.execCommand("copy");
+        } catch (_) {
+        } finally {
+          window.getSelection().removeAllRanges();
+        }
+        setStatus("Credit scrub ready");
+      }
+    });
     rawText.addEventListener("input", () => {
       extractDetailsFromText(rawText.value);
       updateCounts();
