@@ -399,7 +399,7 @@
   <div class="shell">
     <header>
       <div>
-        <h1>Hand Writing Credit App</h1>
+        <h1>D ANALYTICAL CREDIT FORM</h1>
         <p class="subtle">Upload a PDF or image to extract the required business and owner details.</p>
       </div>
       <div class="status" id="status">Ready</div>
@@ -441,6 +441,7 @@
 
           <div class="actions">
             <button class="btn" id="extractBtn" disabled>Extract Details</button>
+            <button class="btn secondary" id="submitCreditBtn" disabled>Submit</button>
             <button class="btn secondary" id="downloadBtn" disabled>Download Excel</button>
             <button class="btn ghost" id="clearBtn">Clear</button>
           </div>
@@ -593,6 +594,7 @@
     const fileInput = $("fileInput");
     const dropzone = $("dropzone");
     const extractBtn = $("extractBtn");
+    const submitCreditBtn = $("submitCreditBtn");
     const downloadBtn = $("downloadBtn");
     const clearBtn = $("clearBtn");
     const rawText = $("rawText");
@@ -603,6 +605,7 @@
     const pricingScrub = $("pricingScrub");
     const creditScrub = $("creditScrub");
     const copyCreditBtn = $("copyCreditBtn");
+    const creditDetailsUrl = "file:///C:/Users/Night%20User/Downloads/apllication%20pdf/DOMY%20ONE%20WORK%20FORCE/credit_details.html";
 
     function renderFields() {
       renderFieldGroup("businessFields", businessFields);
@@ -646,7 +649,9 @@
 
     function providerNameFromText(text) {
       const normalized = normalizeExtractedText(text);
+      if (isFundingApplicationText(normalized)) return "Funding Application";
       if (/Hand\s*Writing\s+Credit\s+App|Business\s+Information[\s\S]*Owner\s+Information/i.test(normalized)) return "Hand Writing Credit App";
+      if (/SPIN\s+CAPITAL|Merchant\s+Pre-Qualification\s+Form/i.test(normalized)) return "Spin Capital";
       if (/Fintek\s+Capital|Funding\s+Application/i.test(normalized)) return "Fintek";
       if (/Bridge\s*Point\s*Capital|BridgePointCapital|PRE-QUALIFICATION\s+AUTHORIZATION/i.test(normalized)) return "BridgePoint";
       if (isBroadwayLikeText(normalized)) return "Broadway";
@@ -667,7 +672,10 @@
         const groupFound = group.fields.filter(([key]) => state.values[key]).length;
         $(group.countId).textContent = `${groupFound} fields found`;
       });
-      downloadBtn.disabled = businessFound + ownerFound === 0;
+      const totalFound = businessFound + ownerFound;
+      const hasTransferData = allFields.some(([key]) => state.values[key] && !["businessPhone", "businessEmail"].includes(key));
+      submitCreditBtn.disabled = !hasTransferData;
+      downloadBtn.disabled = totalFound === 0;
       updateCreditScrub();
     }
 
@@ -741,6 +749,8 @@
     }
 
     function normalizeStateCode(value) {
+      const rawState = cleanOutput(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (rawState === "FI" || rawState === "F1") return "FL";
       const cleaned = cleanOutput(value).replace(/[^A-Za-z ]/g, " ").replace(/\s+/g, " ").trim();
       if (!cleaned) return "";
       const upper = cleaned.toUpperCase();
@@ -901,8 +911,9 @@
       }
       if (dateKeys.has(key)) {
         const normalizedDate = numericOcrCleanup(cleaned).replace(/[.\-]/g, "/");
+        const isoDateMatch = normalizedDate.match(/\b(19\d{2}|20\d{2})\/(\d{1,2})\/(\d{1,2})\b/);
         const dateMatch = normalizedDate.match(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/);
-        cleaned = dateMatch ? dateMatch[0] : "";
+        cleaned = isoDateMatch ? `${isoDateMatch[2]}/${isoDateMatch[3]}/${isoDateMatch[1]}` : dateMatch ? dateMatch[0] : "";
       }
       return cleaned;
     }
@@ -1240,7 +1251,7 @@
     const directFieldRules = [
       { key: "businessName", section: "business", pattern: /legal\s+company\s+name|business\s+legal\s+name|legal\s+business\s+name|business\s+name|merchant(?:\s+name)?|company\s+name|corporation\s+name|entity\s+name|applicant\s+business|merchant\s+legal\s+name/i },
       { key: "businessDbaName", section: "business", pattern: /business\s+dba\s+name|dba\s+name|doing\s+business\s+as|trade\s+name|assumed\s+name|fictitious\s+name|store\s+name/i },
-      { key: "businessAddress", section: "business", pattern: /business\s+address|physical\s+address|company\s+address|merchant\s+address|business\s+street\s+address|street\s+address|location\s+address|premises\s+address/i },
+      { key: "businessAddress", section: "business", pattern: /^address$|business\s+address|physical\s+address|company\s+address|merchant\s+address|business\s+street\s+address|street\s+address|location\s+address|premises\s+address/i },
       { key: "businessCity", section: "business", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "businessState", section: "business", pattern: /^state$/i },
       { key: "businessZip", section: "business", pattern: /^zip(?:\s+code)?$/i },
@@ -1249,28 +1260,28 @@
       { key: "einNumber", section: "business", pattern: /tax\s*id|taxpayer\s+id|tin|federal\s+tax|federal\s+id|employer\s+identification|ein|fein|federal\s+ein|business\s+tax\s+id|tax\s+identification/i },
       { key: "owner2Name", section: "owner2", pattern: /^full\s+name$|name\s*\(\s*(?:2(?:nd)?|second)\s+owner|(?:2(?:nd)?|second)\s+owner\s+name|owner\s+2\s+name|owner\s*\/\s*officer\s+name|principal\s+name|member\s+name|guarantor\s+name/i },
       { key: "owner2Dob", section: "owner2", pattern: /date\s+of\s+birth|birth\s+date|dob|d\s*o\s*b/i },
-      { key: "owner2Address", section: "owner2", pattern: /home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address|(?:2(?:nd)?|second)\s+owner\s+address/i },
+      { key: "owner2Address", section: "owner2", pattern: /^address$|home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address|(?:2(?:nd)?|second)\s+owner\s+address/i },
       { key: "owner2City", section: "owner2", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "owner2State", section: "owner2", pattern: /^state$/i },
       { key: "owner2Zip", section: "owner2", pattern: /^zip(?:\s+code)?$/i },
       { key: "owner2Ssn", section: "owner2", pattern: /ssn|s\s*s\s*n|ssi|s\s*s\s*i|social\s+security|social\s+security\s+number/i },
       { key: "owner3Name", section: "owner3", pattern: /^full\s+name$|name\s*\(\s*(?:3(?:rd)?|third)\s+owner|(?:3(?:rd)?|third)\s+owner\s+name|owner\s+3\s+name|owner\s*\/\s*officer\s+name|principal\s+name|member\s+name|guarantor\s+name/i },
       { key: "owner3Dob", section: "owner3", pattern: /date\s+of\s+birth|birth\s+date|dob|d\s*o\s*b/i },
-      { key: "owner3Address", section: "owner3", pattern: /home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address|(?:3(?:rd)?|third)\s+owner\s+address/i },
+      { key: "owner3Address", section: "owner3", pattern: /^address$|home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address|(?:3(?:rd)?|third)\s+owner\s+address/i },
       { key: "owner3City", section: "owner3", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "owner3State", section: "owner3", pattern: /^state$/i },
       { key: "owner3Zip", section: "owner3", pattern: /^zip(?:\s+code)?$/i },
       { key: "owner3Ssn", section: "owner3", pattern: /ssn|s\s*s\s*n|ssi|s\s*s\s*i|social\s+security|social\s+security\s+number/i },
       { key: "owner4Name", section: "owner4", pattern: /^full\s+name$|name\s*\(\s*(?:4(?:th)?|fourth)\s+owner|(?:4(?:th)?|fourth)\s+owner\s+name|owner\s+4\s+name|owner\s*\/\s*officer\s+name|principal\s+name|member\s+name|guarantor\s+name/i },
       { key: "owner4Dob", section: "owner4", pattern: /date\s+of\s+birth|birth\s+date|dob|d\s*o\s*b/i },
-      { key: "owner4Address", section: "owner4", pattern: /home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address|(?:4(?:th)?|fourth)\s+owner\s+address/i },
+      { key: "owner4Address", section: "owner4", pattern: /^address$|home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address|(?:4(?:th)?|fourth)\s+owner\s+address/i },
       { key: "owner4City", section: "owner4", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "owner4State", section: "owner4", pattern: /^state$/i },
       { key: "owner4Zip", section: "owner4", pattern: /^zip(?:\s+code)?$/i },
       { key: "owner4Ssn", section: "owner4", pattern: /ssn|s\s*s\s*n|ssi|s\s*s\s*i|social\s+security|social\s+security\s+number/i },
       { key: "ownerName", section: "owner", pattern: /^full\s+name$|name\s*\(\s*primary\s+owner|primary\s+owner|owner\s+name|owner\s*\/\s*officer\s+name|officer\s+name|principal\s+name|member\s+name|guarantor\s+name|authorized\s+signer/i },
       { key: "ownerDob", section: "owner", pattern: /date\s+of\s+birth|birth\s+date|dob|d\s*o\s*b/i },
-      { key: "ownerAddress", section: "owner", pattern: /home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address/i },
+      { key: "ownerAddress", section: "owner", pattern: /^address$|home\s+address|owner\s+address|residential\s+address|residence\s+address|personal\s+address|street\s+address/i },
       { key: "ownerCity", section: "owner", pattern: /^city$|city\s*\/\s*state\s*\/\s*zip/i },
       { key: "ownerState", section: "owner", pattern: /^state$/i },
       { key: "ownerZip", section: "owner", pattern: /^zip(?:\s+code)?$/i },
@@ -1689,7 +1700,7 @@
 
       saveValue("businessName", get(/Business\s+Legal\s+Name(?:\s*\([^)]*\))?\s*:\s*(.*?)\s*(?=Business\s+DBA\s+Name|Business\s+Address|City\s*:|State\s*:|Zip\s*:|Tax\s*ID|Owner|Landlord)/i));
       saveValue("businessName", get(/Legal\s+Company\s+Name\s*:\s*(.*?)\s*(?=Business\s+DBA\s+Name|DBA\s+Name|Business\s+Address|Entity\s+Type|EIN|City\s*:|State\s*:|Zip\s*:|Tax\s*ID|Owner|Landlord)/i));
-      saveValue("businessDbaName", get(/Business\s+DBA\s+Name\s*:\s*(.*?)\s*(?=Business\s+Address|City\s*:|State\s*:|Zip\s*:|Tax\s*ID|Owner|Landlord)/i));
+      saveValue("businessDbaName", get(/Business\s+DBA\s+Name\s*:\s*(.*?)\s*(?=(?:Business\s+)?Address\s*:|City\s*:|State\s*:|Zip\s*:|Tax\s*ID|Owner|Landlord)/i));
       saveValue("businessDbaName", get(/DBA\s+Name\s*:\s*(.*?)\s*(?=Entity\s+Type|EIN|Industry|Started\s+Date|Business\s+Address|Owner\s+1|Owner\s+Information|$)/i));
       saveValue("businessAddress", get(/Business\s+Address\s*:\s*(.*?)\s*(?=City\s*:|City\s*\/\s*State\s*\/\s*ZIP|State\s*:|Zip\s*:|Phone|Tax\s*ID|Owner|Landlord)/i));
       saveValue("businessAddress", get(/Business\s+Address\s*:\s*(.*?)\s*(?=Apt\s*\/\s*Suite\s*\/\s*Floor|City\s*:|State\s*:|Zip\s+Code|Zip\s*:|Phone|Tax\s*ID|Owner|Landlord)/i));
@@ -1730,7 +1741,7 @@
         if (position.number > 1) saveValue(`${prefix}Name`, ownerGet(new RegExp(`(?:${ordinal})\\s+Owner\\s+Name\\s*:\\s*(.*?)\\s*(?=Title|Ownership|Date\\s+of\\s+Birth|Home\\s+Address|SSN|Home\\s+Phone|Phone|Email|Gmail|$)`, "i")));
         saveValue(`${prefix}Name`, ownerGet(/Full\s+Name\s*:\s*(.*?)\s*(?=Ownership\s+Percent|Date\s+of\s+Birth|Birth\s+Date|DOB|SSN|Social\s+Security|Home\s+Address|Street\s+Address|Residential\s+Address|$)/i));
         saveValue(`${prefix}Dob`, ownerGet(/Date\s+of\s+Birth\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i));
-        saveValue(`${prefix}Address`, ownerGet(/Home\s+Address\s*:\s*(.*?)\s*(?=City\s*:|City\s*\/\s*State\s*\/\s*ZIP|State\s*:|Zip\s*:|SSN|Home\s+Phone|Phone|Email|Gmail|$)/i));
+        saveValue(`${prefix}Address`, ownerGet(/(?:Home\s+)?Address\s*:\s*(.*?)\s*(?=City\s*:|City\s*\/\s*State\s*\/\s*ZIP|State\s*:|Zip\s*:|SSN|Social\s+Security|Home\s+Phone|Phone|Email|Gmail|$)/i));
         if (position.number > 1) saveValue(`${prefix}Address`, ownerGet(new RegExp(`(?:${ordinal})\\s+Owner\\s+Address\\s*:\\s*(.*?)\\s*(?=City\\s*:|State\\s*:|Zip\\s+Code|Zip\\s*:|SSN|Home\\s+Phone|Phone|Email|Gmail|$)`, "i")));
         saveValue(ssnKey, ownerGet(/SSN#?\s*:\s*([\d-]+)/i));
 
@@ -1896,6 +1907,336 @@
         if (value) return value;
       }
       return "";
+    }
+
+    function isHandWritingCreditText(text) {
+      const normalized = normalizeExtractedText(text);
+      return /Hand\s*Writing\s+Credit\s+App|Merchant\s+DBA\s+Contact\s+Information|Principal\s+Owner\s*\/?\s*Officer\s+Information/i.test(normalized);
+    }
+
+    function applyHandWritingCreditPatterns(text) {
+      const normalized = normalizeExtractedText(text);
+      if (!isHandWritingCreditText(normalized)) return;
+
+      const flat = cleanOutput(normalized);
+      const ownerStart = flat.search(/Principal\s+Owner\s*\/?\s*Officer\s+Information|Owner\s+Information|Owner\s+Name\s*:/i);
+      const businessText = ownerStart > 0 ? flat.slice(0, ownerStart) : flat;
+      const ownerText = ownerStart >= 0 ? flat.slice(ownerStart) : "";
+      const get = (source, regex) => {
+        const match = source.match(regex);
+        return { found: Boolean(match), value: match ? cleanOutput(match[1]) : "" };
+      };
+      const setFound = (key, result, options = {}) => {
+        if (result.found) forceValue(key, result.value, options);
+      };
+
+      setFound("businessName", get(businessText, /Business\s+Legal\s+Name\s*:\s*(.*?)\s*(?=Business\s+DBA\s+Name|DBA\s+Name|Address\s*:|City\s*:|State\s*:|Zip(?:\s+Code)?\s*:|Tax\s*ID|Business\s+Start|Phone|Mobile|Email|Legal\s+Entity|Industry|$)/i));
+      setFound("businessDbaName", get(businessText, /Business\s+DBA\s+Name\s*:\s*(.*?)\s*(?=Address\s*:|City\s*:|State\s*:|Zip(?:\s+Code)?\s*:|Tax\s*ID|Business\s+Start|Phone|Mobile|Email|Legal\s+Entity|Industry|$)/i), { allowBlank: true });
+      setFound("businessAddress", get(businessText, /\bAddress\s*:\s*(.*?)\s*(?=City\s*:|State\s*:|Zip(?:\s+Code)?\s*:|Tax\s*ID|Business\s+Start|Phone|Mobile|Email|Legal\s+Entity|Industry|$)/i));
+      setFound("businessCity", get(businessText, /\bCity\s*:\s*([A-Za-z .'-]+?)\s*(?=State\s*:|Zip(?:\s+Code)?\s*:|Tax\s*ID|Business\s+Start|Phone|Mobile|Email|Legal\s+Entity|Industry|$)/i));
+      setFound("businessState", get(businessText, /\bState\s*:\s*([A-Z]{2})\b/i));
+      setFound("businessZip", get(businessText, /\bZip(?:\s+Code)?\s*:\s*(\d{5}(?:-\d{4})?)/i));
+      setFound("einNumber", get(businessText, /Tax\s*ID\s*#?\s*:\s*([\d-]+)/i));
+
+      if (!ownerText) return;
+      setFound("ownerName", get(ownerText, /Owner\s+Name\s*:\s*(.*?)\s*(?=Title\s*:|Ownership|DOB\s*:|Date\s+of\s+Birth|Address\s*:|City\s*:|State\s*:|Zip(?:\s+Code)?\s*:|Social\s+Security|SSN|Phone|Email|$)/i));
+      setFound("ownerDob", get(ownerText, /(?:\bDOB|Date\s+of\s+Birth)\s*:\s*([\d./-]+)/i));
+      setFound("ownerAddress", get(ownerText, /\bAddress\s*:\s*(.*?)\s*(?=City\s*:|State\s*:|Zip(?:\s+Code)?\s*:|Social\s+Security|SSN|Phone|Email|$)/i));
+      setFound("ownerCity", get(ownerText, /\bCity\s*:\s*([A-Za-z .'-]+?)\s*(?=State\s*:|Zip(?:\s+Code)?\s*:|Social\s+Security|SSN|Phone|Email|$)/i));
+      setFound("ownerState", get(ownerText, /\bState\s*:\s*([A-Z]{2})\b/i));
+      setFound("ownerZip", get(ownerText, /\bZip(?:\s+Code)?\s*:\s*(\d{5}(?:-\d{4})?)/i));
+      setFound("ssn", get(ownerText, /Social\s+Security(?:\s+Number)?\s*#?\s*:\s*([\d-]+)/i));
+    }
+
+    function isSpinCapitalText(text) {
+      const normalized = normalizeExtractedText(text);
+      return /SPIN\s+CAPITAL|Merchant\s+Pre-Qualification\s+Form/i.test(normalized)
+        && /Federal\s+Tax\s+ID|Owner\s*\/\s*Principal\s+Information/i.test(normalized);
+    }
+
+    function parseSpinAddress(value) {
+      const text = cleanOutput(value)
+        .replace(/\s+(?:Address|City,\s*State\s+Zip)\s*$/i, "")
+        .trim();
+
+      const commaZipState = text.match(/^(.+?),\s*([A-Za-z .'-]+?)\s+(\d{5}(?:-\d{4})?)\s+([A-Z]{2})$/i);
+      if (commaZipState) {
+        return {
+          address: commaZipState[1],
+          city: commaZipState[2],
+          zip: commaZipState[3],
+          state: commaZipState[4].toUpperCase()
+        };
+      }
+
+      const commaStateZip = text.match(/^(.+?),\s*([A-Za-z .'-]+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+      if (commaStateZip) {
+        return {
+          address: commaStateZip[1],
+          city: commaStateZip[2],
+          state: commaStateZip[3].toUpperCase(),
+          zip: commaStateZip[4]
+        };
+      }
+
+      const cityZipState = text.match(/^([A-Za-z .'-]+?)\s+(\d{5}(?:-\d{4})?)\s+([A-Z]{2})$/i);
+      if (cityZipState) {
+        return {
+          address: "",
+          city: cityZipState[1],
+          zip: cityZipState[2],
+          state: cityZipState[3].toUpperCase()
+        };
+      }
+
+      return { address: text, city: "", state: "", zip: "" };
+    }
+
+    function applySpinAddress(target, value) {
+      const parsed = parseSpinAddress(value);
+      if (parsed.address) forceValue(`${target}Address`, parsed.address);
+      if (parsed.city) forceValue(`${target}City`, parsed.city);
+      if (parsed.state) forceValue(`${target}State`, normalizeStateCode(parsed.state));
+      if (parsed.zip) forceValue(`${target}Zip`, parsed.zip);
+    }
+
+    // INDEX: SPIN CAPITAL PART START - Spin Capital PDF specific extraction code starts here.
+    function applySpinCapitalPatterns(text, rows) {
+      const normalized = normalizeExtractedText(text);
+      if (!isSpinCapitalText(normalized)) return;
+
+      const flat = cleanOutput(normalized);
+      const ownerStart = flat.search(/Owner\s*\/\s*Principal\s+Information/i);
+      const propertyStart = flat.search(/Property\s+Information/i);
+      const businessText = ownerStart > 0 ? flat.slice(0, ownerStart) : flat;
+      const ownerText = ownerStart >= 0 ? flat.slice(ownerStart, propertyStart > ownerStart ? propertyStart : flat.length) : "";
+      const businessStop = /Business\s+DBA\s+Name|Legal\s+Entity\s*\(Circle\)|Federal\s+Tax\s+ID\s*#?|State\s+of\s+Incorporation|Business\s+Classification|Physical\s+Address|Mailing\s+Address|Business\s+Phone|Business\s+Fax|Mobile|Website|Email|Use\s+of\s+Proceeds|Industry\s+Type|Business\s+Start\s+Date|Business\s+Location|Products\s*\/\s*Services|Bank\s+Account|Routing\s*#|Number\s+of\s+Employees|Business\s+Activity|Name\s+of\s+Bank|Annual\s+Revenue|Annual\s+Cost\s+of\s+Goods|Owner\s*\/\s*Principal|Property\s+Information|$/i;
+      const ownerStop = /Name\s*:|Title\s*:|%\s+of\s+Ownership|Place\s+of\s+Birth|Address\s*:|City,\s*State\s+Zip|Home\s+Phone|Mobile\s*:|Email\b|Date\s+of\s+Birth|SSN\s*#|Drivers\s+License|Drivers\s+License\s+State\/Province|Property\s+Information|$/i;
+      const get = (source, labelRegex, stopRegex) => valueAfterLabel(source, labelRegex, stopRegex);
+
+      forceValue("businessName", get(businessText, /Business\s+Legal\s+Name\s*:?\s*/i, businessStop));
+      forceValue("businessDbaName", get(businessText, /Business\s+DBA\s+Name\s*:?\s*/i, businessStop), { allowBlank: true });
+      forceValue("einNumber", get(businessText, /Federal\s+Tax\s+ID\s*#?\s*:?\s*/i, businessStop));
+      applySpinAddress("business", get(businessText, /Physical\s+Address\s*:?\s*/i, businessStop));
+      if (!state.values.businessState) {
+        forceValue("businessState", get(businessText, /State\s+of\s+Incorporation\s*:?\s*/i, businessStop));
+      }
+
+      if (!ownerText) return;
+      forceValue("ownerName", get(ownerText, /Name\s*:?\s*/i, ownerStop));
+      forceValue("ownerDob", get(ownerText, /Date\s+of\s+Birth\s*:?\s*/i, ownerStop));
+      forceValue("ssn", get(ownerText, /SSN\s*#?\s*:?\s*/i, ownerStop));
+      applySpinAddress("owner", get(ownerText, /Address\s*:?\s*/i, ownerStop));
+      applySpinAddress("owner", get(ownerText, /City,\s*State\s+Zip\s*:?\s*/i, ownerStop));
+    }
+
+    function isFundingApplicationText(text) {
+      const normalized = normalizeExtractedText(text);
+      return /Funding\s+Application/i.test(normalized)
+        && /Legal\s+Business\s+Name/i.test(normalized)
+        && /Principal\s+Owner\s+Information\s*#?\s*1/i.test(normalized)
+        && /Federal\s+Tax\s+ID\s+Number/i.test(normalized)
+        && !/Fintek\s+Capital|Owner\s+1\s+Information/i.test(normalized);
+    }
+
+    function splitNameOwnershipRow(value) {
+      const text = cleanOutput(value);
+      const match = text.match(/^(.+?)\s+(.+?)\s+(\d+(?:\.\d+)?%?)$/);
+      if (!match) return { first: "", last: "", ownership: "" };
+      return { first: match[1], last: match[2], ownership: match[3] };
+    }
+
+    function splitCityStateZipRow(value) {
+      const text = cleanOutput(value);
+      const match = text.match(/^(.+?)\s+([A-Z]{2}|[A-Za-z]{4,})\s+(\d{5}(?:-\d{4})?)$/i);
+      if (!match) return { city: "", state: "", zip: "" };
+      return { city: match[1], state: normalizeStateCode(match[2]), zip: match[3] };
+    }
+
+    function applyCityStateZip(target, value) {
+      const parsed = splitCityStateZipRow(value);
+      if (parsed.city) forceValue(`${target}City`, parsed.city);
+      if (parsed.state) forceValue(`${target}State`, parsed.state);
+      if (parsed.zip) forceValue(`${target}Zip`, parsed.zip);
+    }
+
+    // INDEX: FUNDING APPLICATION PART START - Generic Funding Application PDF specific extraction code starts here.
+    function applyFundingApplicationPatterns(text, rows) {
+      const normalized = normalizeExtractedText(text);
+      if (!isFundingApplicationText(normalized)) return;
+
+      const flat = cleanOutput(normalized);
+      const owner1Start = flat.search(/Principal\s+Owner\s+Information\s*#?\s*1/i);
+      const owner2Start = flat.search(/Principal\s+Owner\s+Information\s*#?\s*2/i);
+      const businessText = owner1Start > 0 ? flat.slice(0, owner1Start) : flat;
+      const ownerText = owner1Start >= 0 ? flat.slice(owner1Start, owner2Start > owner1Start ? owner2Start : flat.length) : "";
+      const cleanRows = rows.map(cleanOutput).filter(Boolean);
+      const rowIndex = (pattern) => cleanRows.findIndex((row) => pattern.test(row));
+      const rowIndexAfter = (startIndex, pattern) => cleanRows.findIndex((row, index) => index > startIndex && pattern.test(row));
+      const rowAfter = (pattern) => {
+        const index = rowIndex(pattern);
+        return index >= 0 ? cleanRows[index + 1] || "" : "";
+      };
+      const rowAfterBetween = (pattern, startIndex, endIndex = cleanRows.length) => {
+        const index = cleanRows.findIndex((row, rowNumber) => rowNumber > startIndex && rowNumber < endIndex && pattern.test(row));
+        return index >= 0 ? cleanRows[index + 1] || "" : "";
+      };
+      const businessStop = /Doing\s+Business\s+As\s+Name|Business\s+Address|City\b|State\b|Zip\b|Business\s+Phone|Business\s+Email|Legal\s+Business\s+Structure|Business\s+Start\s+Date|Business\s+Type|Landlord|Business\s+Financial|Federal\s+Tax\s+ID|State\s+of\s+Incorporation|Requested\s+Funding\s+Amount|Purpose\s+of\s+Funds|Principal\s+Owner|$/i;
+      const ownerStop = /Last\s+Name|Percent\s+Ownership|Home\s+Address|City\b|State\b|Zip\b|Birthdate|Social\s+Security|Phone\s+Number|Email\b|Principal\s+Owner\s+Information\s*#?\s*2|$/i;
+      const get = (source, labelRegex, stopRegex) => valueAfterLabel(source, labelRegex, stopRegex);
+      const rowWithBetween = (pattern, startIndex = -1, endIndex = cleanRows.length) => cleanRows.find((row, rowNumber) => rowNumber > startIndex && rowNumber < endIndex && pattern.test(row)) || "";
+      const ownerRowStart = rowIndex(/Principal\s+Owner\s+Information\s*#?\s*1/i);
+      const ownerRowEnd = rowIndexAfter(ownerRowStart, /Principal\s+Owner\s+Information\s*#?\s*2/i);
+      const ownerRowLimit = ownerRowEnd > ownerRowStart ? ownerRowEnd : cleanRows.length;
+      const businessRowLimit = ownerRowStart >= 0 ? ownerRowStart : cleanRows.length;
+      const taxIdPattern = /\b(\d{2}-?\d{7}|\d{9})\b/;
+      const fundingState = (value) => normalizeStateCode(String(value || "").replace(/\bF[I1]\b/gi, "FL"));
+      const parseFundingLooseLocation = (value) => {
+        const text = cleanOutput(value);
+        if (!text) return null;
+
+        const stateZipCity = text.match(/^([A-Z]{2}|[A-Z][0-9]|[A-Za-z]{4,})\s+(\d{5}(?:-\d{4})?)\s+([A-Za-z .'-]+)$/i);
+        if (stateZipCity && stateCodes.has(fundingState(stateZipCity[1]))) {
+          return { city: stateZipCity[3], state: fundingState(stateZipCity[1]), zip: stateZipCity[2] };
+        }
+
+        const cityStateZip = text.match(/^([A-Za-z .'-]+?)\s+([A-Z]{2}|[A-Z][0-9]|[A-Za-z]{4,})\s+(\d{5}(?:-\d{4})?)$/i);
+        if (cityStateZip && stateCodes.has(fundingState(cityStateZip[2]))) {
+          return { city: cityStateZip[1], state: fundingState(cityStateZip[2]), zip: cityStateZip[3] };
+        }
+
+        const stateCityZip = text.match(/^([A-Z]{2}|[A-Z][0-9]|[A-Za-z]{4,})\s+([A-Za-z .'-]+?)\s+(\d{5}(?:-\d{4})?)$/i);
+        if (stateCityZip && stateCodes.has(fundingState(stateCityZip[1]))) {
+          return { city: stateCityZip[2], state: fundingState(stateCityZip[1]), zip: stateCityZip[3] };
+        }
+
+        return null;
+      };
+      const applyFundingLocation = (target, parsed) => {
+        if (!parsed) return false;
+        if (parsed.city) forceValue(`${target}City`, parsed.city);
+        if (parsed.state) forceValue(`${target}State`, parsed.state);
+        if (parsed.zip) forceValue(`${target}Zip`, parsed.zip);
+        return true;
+      };
+      const fixFundingMixedLocation = (target) => {
+        const cityKey = `${target}City`;
+        const stateKey = `${target}State`;
+        const zipKey = `${target}Zip`;
+        const candidates = [
+          state.values[zipKey],
+          `${state.values[stateKey] || ""} ${state.values[zipKey] || ""} ${state.values[cityKey] || ""}`,
+          `${state.values[cityKey] || ""} ${state.values[stateKey] || ""} ${state.values[zipKey] || ""}`
+        ];
+        for (const candidate of candidates) {
+          if (applyFundingLocation(target, parseFundingLooseLocation(candidate))) return true;
+        }
+        return false;
+      };
+      const extractFundingTaxId = () => {
+        const inlineTax = businessText.match(/Federal\s+Tax\s+ID\s+Number(?:\s*\([^)]*\))?\s*:?\s*(?:#\s*)?(\d{2}-?\d{7}|\d{9})\b/i)
+          || businessText.match(/Federal\s+Tax\s+ID\s+Number(?:\s*\([^)]*\))?\s+State\s+of\s+Incorporation\s+(\d{2}-?\d{7}|\d{9})\b/i);
+        if (inlineTax) return inlineTax[1];
+
+        const taxRowIndex = cleanRows.findIndex((row, rowNumber) => rowNumber < businessRowLimit && /Federal\s+Tax\s+ID\s+Number/i.test(row));
+        if (taxRowIndex >= 0) {
+          const sameRowTax = cleanRows[taxRowIndex].match(/Federal\s+Tax\s+ID\s+Number(?:\s*\([^)]*\))?\s*:?\s*(?:#\s*)?(\d{2}-?\d{7}|\d{9})\b/i);
+          if (sameRowTax) return sameRowTax[1];
+          const nextTax = cleanOutput(`${cleanRows[taxRowIndex + 1] || ""} ${cleanRows[taxRowIndex + 2] || ""}`).match(taxIdPattern);
+          if (nextTax) return nextTax[1];
+        }
+
+        return get(businessText, /Federal\s+Tax\s+ID\s+Number(?:\s*\([^)]*\))?\s*:?\s*/i, /State\s+of\s+Incorporation|Requested\s+Funding\s+Amount|Purpose\s+of\s+Funds|$/i);
+      };
+      const applyFundingCityStateZip = (target, source, startIndex = -1, endIndex = cleanRows.length) => {
+        const inlineMatch = source.match(/\bCity\s*:?\s+([A-Za-z .'-]+?)\s+\bState\s*:?\s+([A-Z]{2}|[A-Z][0-9]|[A-Za-z]{4,})\s+\bZip\s*:?\s+(\d{5}(?:-\d{4})?)/i);
+        const headerValueMatch = source.match(/\bCity\s+State\s+Zip\s+([A-Za-z .'-]+?)\s+([A-Z]{2}|[A-Z][0-9]|[A-Za-z]{4,})\s+(\d{5}(?:-\d{4})?)(?=\s+(?:Birthdate|Business\s+Phone|Business\s+Email|Legal\s+Business|Business\s+Financial|Federal\s+Tax|Phone\s+Number|Email|Principal\s+Owner|$))/i);
+        const match = inlineMatch || headerValueMatch;
+        if (match) {
+          forceValue(`${target}City`, match[1]);
+          forceValue(`${target}State`, fundingState(match[2]));
+          forceValue(`${target}Zip`, match[3]);
+          return true;
+        }
+
+        const valueRow = rowAfterBetween(/^City\s+State\s+Zip$/i, startIndex, endIndex)
+          || rowWithBetween(/^City\s+State\s+Zip\s+/i, startIndex, endIndex).replace(/^City\s+State\s+Zip\s+/i, "");
+        if (applyFundingLocation(target, parseFundingLooseLocation(valueRow))) return true;
+        const parsed = splitCityStateZipRow(valueRow);
+        if (!parsed.city && !parsed.state && !parsed.zip) return false;
+        if (parsed.city) forceValue(`${target}City`, parsed.city);
+        if (parsed.state) forceValue(`${target}State`, fundingState(parsed.state));
+        if (parsed.zip) forceValue(`${target}Zip`, parsed.zip);
+        return true;
+      };
+      const extractFundingOwnerName = () => {
+        const inlineName = ownerText.match(/First\s+Name\s*:?\s+([A-Za-z][A-Za-z .'-]*?)\s+Last\s+Name\s*:?\s+([A-Za-z][A-Za-z .'-]*?)\s+Percent\s+Ownership\s*(?:\(%\))?\s*:?\s*(\d+(?:\.\d+)?%?)/i);
+        if (inlineName) return cleanOutput(`${inlineName[1]} ${inlineName[2]}`);
+
+        const headerValueName = ownerText.match(/First\s+Name\s+Last\s+Name\s+Percent\s+Ownership\s*(?:\(%\))?\s+([A-Za-z][A-Za-z .'-]*?)\s+([A-Za-z][A-Za-z .'-]*?)\s+\d+(?:\.\d+)?%?(?=\s+Home\s+Address|\s+City|\s+Birthdate|\s+Phone\s+Number|\s+Email|$)/i);
+        if (headerValueName) return cleanOutput(`${headerValueName[1]} ${headerValueName[2]}`);
+
+        const valueRow = rowAfterBetween(/First\s+Name.*Last\s+Name.*Percent\s+Ownership/i, ownerRowStart, ownerRowLimit)
+          || rowAfter(/First\s+Name.*Last\s+Name.*Percent\s+Ownership/i);
+        const parsedName = splitNameOwnershipRow(valueRow);
+        if (parsedName.first || parsedName.last) return cleanOutput(`${parsedName.first} ${parsedName.last}`);
+
+        const twoPartName = valueRow.match(/^([A-Za-z][A-Za-z .'-]*?)\s+([A-Za-z][A-Za-z .'-]*?)$/);
+        return twoPartName ? cleanOutput(`${twoPartName[1]} ${twoPartName[2]}`) : "";
+      };
+      const extractFundingDobSsn = () => ownerText.match(/Birthdate(?:\s*\([^)]*\))?\s*:?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\s+Social\s+Security\s+Number\s*:?\s*([\d-]{9,11})/i)
+        || ownerText.match(/Birthdate(?:\s*\([^)]*\))?\s+Social\s+Security\s+Number\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\s+([\d-]{9,11})/i)
+        || (rowAfterBetween(/Birthdate.*Social\s+Security/i, ownerRowStart, ownerRowLimit) || "").match(/(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\s+([\d-]{9,11})/);
+
+      const legalName = get(businessText, /Legal\s+Business\s+Name\s*:?\s*/i, businessStop) || rowAfter(/Legal\s+Business\s+Name.*Doing\s+Business\s+As\s+Name/i);
+      forceValue("businessName", legalName);
+      forceValue("businessDbaName", get(businessText, /Doing\s+Business\s+As\s+Name\s*\(?\s*DBA\s*\)?\s*:?\s*/i, businessStop), { allowBlank: true });
+      forceValue("businessAddress", get(businessText, /Business\s+Address\s*:?\s*/i, businessStop) || rowAfter(/^Business\s+Address$/i));
+
+      const businessCityApplied = applyFundingCityStateZip("business", businessText, -1, businessRowLimit);
+      if (!businessCityApplied) {
+        const businessCity = get(businessText, /\bCity\s*:?\s*/i, /State\b|Zip\b|Business\s+Phone|Business\s+Email|Legal\s+Business\s+Structure|$/i);
+        const businessState = get(businessText, /\bState\s*:?\s*/i, /Zip\b|Business\s+Phone|Business\s+Email|Legal\s+Business\s+Structure|$/i);
+        const businessZip = get(businessText, /\bZip\s*:?\s*/i, /Business\s+Phone|Business\s+Email|Legal\s+Business\s+Structure|$/i);
+        forceValue("businessCity", businessCity);
+        forceValue("businessState", fundingState(businessState));
+        forceValue("businessZip", businessZip);
+      }
+      if (!state.values.businessCity || !state.values.businessState || !state.values.businessZip) {
+        applyCityStateZip("business", rowAfter(/^City\s+State\s+Zip$/i));
+      }
+      fixFundingMixedLocation("business");
+
+      forceValue("einNumber", extractFundingTaxId());
+
+      if (!ownerText) return;
+      const fundingOwnerName = extractFundingOwnerName();
+      if (fundingOwnerName) {
+        forceValue("ownerName", fundingOwnerName);
+      } else {
+        const inlineFirstName = get(ownerText, /First\s+Name\s*:?\s*/i, /Last\s+Name|Percent\s+Ownership|Home\s+Address|$/i);
+        const inlineLastName = get(ownerText, /Last\s+Name\s*:?\s*/i, /Percent\s+Ownership|Home\s+Address|$/i);
+        forceValue("ownerName", cleanOutput(`${inlineFirstName} ${inlineLastName}`));
+      }
+
+      forceValue("ownerAddress", get(ownerText, /Home\s+Address\s*:?\s*/i, ownerStop) || rowAfter(/^Home\s+Address$/i));
+      const ownerCityApplied = applyFundingCityStateZip("owner", ownerText, ownerRowStart, ownerRowLimit);
+      if (!ownerCityApplied) {
+        const ownerCity = get(ownerText, /\bCity\s*:?\s*/i, /State\b|Zip\b|Birthdate|Social\s+Security|Phone\s+Number|Email\b|$/i);
+        const ownerState = get(ownerText, /\bState\s*:?\s*/i, /Zip\b|Birthdate|Social\s+Security|Phone\s+Number|Email\b|$/i);
+        const ownerZip = get(ownerText, /\bZip\s*:?\s*/i, /Birthdate|Social\s+Security|Phone\s+Number|Email\b|$/i);
+        forceValue("ownerCity", ownerCity);
+        forceValue("ownerState", fundingState(ownerState));
+        forceValue("ownerZip", ownerZip);
+      }
+      if (!state.values.ownerCity || !state.values.ownerState || !state.values.ownerZip) {
+        applyCityStateZip("owner", rowAfterBetween(/^City\s+State\s+Zip$/i, ownerRowStart, ownerRowLimit));
+      }
+      fixFundingMixedLocation("owner");
+
+      const dobSsn = extractFundingDobSsn();
+      forceValue("ownerDob", get(ownerText, /Birthdate(?:\s*\([^)]*\))?\s*:?\s*/i, /Social\s+Security|Phone\s+Number|Email\b|$/i) || (dobSsn ? dobSsn[1] : ""));
+      forceValue("ssn", get(ownerText, /Social\s+Security\s+Number\s*:?\s*/i, /Phone\s+Number|Email\b|Principal\s+Owner\s+Information\s*#?\s*2|$/i) || (dobSsn ? dobSsn[2] : ""));
     }
 
     function isBroadwayLikeText(text) {
@@ -2152,6 +2493,7 @@
       }
       if (!state.manual.businessName) {
         state.values.businessName = cleanOutput(state.values.businessName)
+          .replace(/\s+(?:Business\s+DBA\s+Name|DBA\s+Name)\s*$/i, "")
           .replace(/\s+(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)\s*$/i, "")
           .trim();
       }
@@ -2178,9 +2520,12 @@
 
       applyFallbackPatterns(text);
       applyRegexFallbacks(text, rows);
+      applyHandWritingCreditPatterns(text);
       applyBridgePointPatterns(text, rows);
       applyBroadwayPatterns(text, rows);
       applyFintekPatterns(text, rows);
+      applySpinCapitalPatterns(text, rows);
+      applyFundingApplicationPatterns(text, rows);
       fixBusinessNamePair();
       parseAddressParts(state.values.businessAddress, "business");
       parseAddressParts(state.values.ownerAddress, "owner");
@@ -2238,6 +2583,7 @@
     async function processFile() {
       if (!state.file) return;
       extractBtn.disabled = true;
+      submitCreditBtn.disabled = true;
       downloadBtn.disabled = true;
       setStatus("Processing file...");
       setProgress(true, 5, "Starting...");
@@ -2254,6 +2600,133 @@
         extractBtn.disabled = !state.file;
         updateCounts();
       }
+    }
+
+    function joinedAddress(address, city, stateCode, zip) {
+      const base = cleanOutput(address);
+      const stateZip = cleanOutput([stateCode, zip].filter(Boolean).join(" "));
+      const location = cleanOutput([city, stateZip].filter(Boolean).join(", "));
+      if (!base) return location;
+      const normalizedBase = normalizeLabel(base);
+      const normalizedLocation = normalizeLabel(location);
+      if (!location || normalizedBase.includes(normalizedLocation)) return base;
+      return `${base}, ${location}`;
+    }
+
+    function twoDigit(value) {
+      return String(value || "").padStart(2, "0");
+    }
+
+    function dateForInput(value) {
+      const match = numericOcrCleanup(value).replace(/[.\-]/g, "/").match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/);
+      if (!match) return "";
+      let year = Number(match[3]);
+      if (year < 100) year += year > 30 ? 1900 : 2000;
+      return `${year}-${twoDigit(match[1])}-${twoDigit(match[2])}`;
+    }
+
+    function monthForInput(value) {
+      const text = cleanOutput(value);
+      const numeric = text.match(/\b(19\d{2}|20\d{2})[-\/.](\d{1,2})\b/);
+      if (numeric) return `${numeric[1]}-${twoDigit(numeric[2])}`;
+      const mdy = text.match(/\b(\d{1,2})[-\/.](\d{1,2})[-\/.](19\d{2}|20\d{2})\b/);
+      if (mdy) return `${mdy[3]}-${twoDigit(mdy[1])}`;
+
+      const named = text.match(/\b(January|February|Febuary|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b\.?\s*(?:,)?\s*(19\d{2}|20\d{2})/i);
+      if (!named) return "";
+      const months = {
+        january: "01", jan: "01",
+        february: "02", febuary: "02", feb: "02",
+        march: "03", mar: "03",
+        april: "04", apr: "04",
+        may: "05",
+        june: "06", jun: "06",
+        july: "07", jul: "07",
+        august: "08", aug: "08",
+        september: "09", sept: "09", sep: "09",
+        october: "10", oct: "10",
+        november: "11", nov: "11",
+        december: "12", dec: "12"
+      };
+      return `${named[2]}-${months[named[1].toLowerCase().replace(".", "")] || ""}`;
+    }
+
+    function extractCreditDetailsExtras(text) {
+      const flat = cleanOutput(normalizeExtractedText(text));
+      const ownerStart = flat.search(/Principal\s+Owner\s*\/?\s*Officer\s+Information|Owner\s+Information|Owner\s+Name\s*:/i);
+      const businessText = ownerStart > 0 ? flat.slice(0, ownerStart) : flat;
+      const ownerText = ownerStart >= 0 ? flat.slice(ownerStart) : "";
+      const get = (source, regex) => {
+        const match = source.match(regex);
+        return match ? cleanOutput(match[1]) : "";
+      };
+      const ownership = get(ownerText, /(?:Ownership\s*%?|%\s+of\s+Ownership|Percent\s+Ownership\s*\(%\))\s*:?\s*(\d+(?:\.\d+)?%?)/i);
+      const ownerEmail = get(ownerText, /Email(?:\s+Address)?\s*:?\s*([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
+      const fundingIndustry = get(businessText, /Business\s+Type\s*\/\s*Services\s+Provided\s*:?\s*(.*?)\s*(?=Landlord\s+Name|Business\s+Financial|Federal\s+Tax|Requested\s+Funding|Principal\s+Owner|$)/i);
+
+      return {
+        businessStartDate: monthForInput(get(businessText, /Business\s+Start\s+Date(?:\s*\([^)]*\))?\s*:?\s*(.*?)\s*(?=Phone|Mobile|Email|Legal\s+Entity|Business\s+Type|Industry|Business\s+Location|Products|Principal|Owner|$)/i)),
+        legalEntity: get(businessText, /Legal\s+Entity(?:\s*\([^)]*\))?\s*:\s*(.*?)\s*(?=Federal\s+Tax\s+ID|State\s+of\s+Incorporation|Industry|Principal|Owner|$)/i),
+        industryType: get(businessText, /Products\s*\/\s*Services\s*:\s*(.*?)\s*(?=Bank\s+Account|Routing|Business\s+Activity|Annual|Owner|Principal|$)/i) || fundingIndustry || get(businessText, /Industry\s+Type\s*:\s*(.*?)\s*(?=Business\s+Start\s+Date|Business\s+Location|Products\s*\/\s*Services|Principal|Owner|$)/i),
+        ownership: ownership ? (/%$/.test(ownership) ? ownership : `${ownership}%`) : "",
+        ownerRole: get(ownerText, /Title\s*:\s*(.*?)\s*(?=Title\s*:|Ownership|%\s+of\s+Ownership|DOB\s*:|Date\s+of\s+Birth|Address\s*:|City\s*:|State\s*:|Zip|Social\s+Security|SSN|Phone|Email|$)/i),
+        ownerPhone: get(ownerText, /(?:Home\s+Phone|Phone\s+Number|Phone|Mobile)\s*#?\s*:?\s*(.*?)\s*(?=Home\s+Phone\s*:|Mobile\s*:|Email|Date\s+of\s+Birth|Social\s+Security|SSN|Principal\s+Owner|$)/i),
+        ownerEmail
+      };
+    }
+
+    function buildCreditDetailsPayload() {
+      const extras = extractCreditDetailsExtras(rawText.value);
+      return {
+        businessLegalName: state.values.businessName || "",
+        businessDbaName: state.values.businessDbaName || "",
+        businessAddress: joinedAddress(state.values.businessAddress, state.values.businessCity, state.values.businessState, state.values.businessZip),
+        businessPhone: state.values.businessPhone || "",
+        taxId: state.values.einNumber || "",
+        businessStartDate: extras.businessStartDate,
+        lengthOwnership: "",
+        legalEntity: extras.legalEntity || "",
+        websiteAddress: "",
+        industryType: extras.industryType || "",
+        businessEmail: state.values.businessEmail || "",
+        lenderCompany: "",
+        referenceName: "",
+        referenceContactName: "",
+        ownerName: state.values.ownerName || "",
+        ownership: extras.ownership || "",
+        ownerRole: extras.ownerRole || "",
+        dateOfBirth: dateForInput(state.values.ownerDob),
+        ownerAddress: joinedAddress(state.values.ownerAddress, state.values.ownerCity, state.values.ownerState, state.values.ownerZip),
+        ownerPhone: extras.ownerPhone || "",
+        ownerSsn: state.values.ssn || "",
+        ownerEmail: extras.ownerEmail || ""
+      };
+    }
+
+    function submitToCreditDetails() {
+      const payload = buildCreditDetailsPayload();
+      try {
+        localStorage.setItem("creditDetailsIncomingData", JSON.stringify(payload));
+      } catch (error) {
+      }
+
+      const target = window.open(creditDetailsUrl, "creditDetailsWindow");
+      if (!target) {
+        setStatus("Popup blocked - browser popup allow karo.");
+        return;
+      }
+
+      let attempts = 0;
+      const sender = window.setInterval(() => {
+        try {
+          target.postMessage({ type: "creditDetailsAutofill", data: payload }, "*");
+        } catch (error) {
+        }
+        attempts += 1;
+        if (attempts >= 24) window.clearInterval(sender);
+      }, 250);
+
+      setStatus("Credit details website opened and data sent");
     }
 
     function downloadExcel() {
@@ -2343,6 +2816,7 @@
 
     fileInput.addEventListener("change", (event) => setFile(event.target.files[0] || null));
     extractBtn.addEventListener("click", processFile);
+    submitCreditBtn.addEventListener("click", submitToCreditDetails);
     downloadBtn.addEventListener("click", downloadExcel);
     clearBtn.addEventListener("click", clearAll);
     pricingScrub.addEventListener("input", updateCreditScrub);
