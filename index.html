@@ -439,13 +439,11 @@
             <div class="subtle" id="progressText">Processing...</div>
           </div>
 
-          <div class="actions">
-            <button class="btn" id="extractBtn" disabled>Extract Details</button>
-            <button class="btn ghost" id="saveLearningBtn" disabled>Save Learning</button>
-            <button class="btn secondary" id="downloadBtn" disabled>Download Excel</button>
-            <button class="btn ghost" id="clearBtn">Clear</button>
-            <button class="btn ghost" id="resetLearningBtn" type="button">Reset Learning</button>
-          </div>
+        <div class="actions">
+          <button class="btn" id="extractBtn" disabled>Extract Details</button>
+          <button class="btn secondary" id="downloadBtn" disabled>Download Excel</button>
+          <button class="btn ghost" id="clearBtn">Clear</button>
+        </div>
 
           <div class="meta">
             <div>For best results, use a clear, straight, high-resolution scan or image.</div>
@@ -604,11 +602,6 @@
     const progressWrap = $("progressWrap");
     const progress = $("progress");
     const progressText = $("progressText");
-    const pricingScrub = $("pricingScrub");
-    const creditScrub = $("creditScrub");
-    const copyCreditBtn = $("copyCreditBtn");
-    const learningStoreKey = "required-details-extractor-learning-v1";
-    let learnedExtraction = loadLearningStore();
 
     function renderFields() {
       renderFieldGroup("businessFields", businessFields);
@@ -674,263 +667,6 @@
         $(group.countId).textContent = `${groupFound} fields found`;
       });
       downloadBtn.disabled = businessFound + ownerFound === 0;
-      saveLearningBtn.disabled = !rawText.value.trim() || businessFound + ownerFound === 0;
-      updateCreditScrub();
-    }
-
-    function formatEin(value) {
-      const digits = String(value || "").replace(/\D/g, "").slice(0, 9);
-      if (digits.length <= 2) return digits;
-      return `${digits.slice(0, 2)}-${digits.slice(2)}`;
-    }
-
-    function previousMonthName(date = new Date()) {
-      const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-      return names[(date.getMonth() + 11) % 12];
-    }
-
-    function normalizeRevenueMonth(value) {
-      const key = String(value || "").toLowerCase().replace(/[^a-z]/g, "");
-      const aliases = {
-        jan: "January",
-        january: "January",
-        feb: "February",
-        february: "February",
-        febuary: "February",
-        mar: "March",
-        march: "March",
-        apr: "April",
-        april: "April",
-        may: "May",
-        jun: "June",
-        june: "June",
-        jul: "July",
-        july: "July",
-        aug: "August",
-        august: "August",
-        sep: "September",
-        sept: "September",
-        september: "September",
-        oct: "October",
-        october: "October",
-        nov: "November",
-        november: "November",
-        dec: "December",
-        december: "December"
-      };
-      return aliases[key] || "";
-    }
-
-    function parsePricingScrub(text) {
-      const normalized = String(text || "").replace(/\r/g, "\n");
-      const lines = normalized.split("\n").map((line) => cleanOutput(line)).filter(Boolean);
-      let tier = lines[0] || "";
-      const depositIndex = tier.search(/\bDeposits?(?:\s*\([^)]*\))?\s*:/i);
-      if (depositIndex >= 0) tier = tier.slice(0, depositIndex);
-      if (/^(?:Deposits|Industry|TIB|State|Datamerch|Company\s+Website|Proceed)\b/i.test(tier)) tier = "";
-
-      const readInline = (regex) => {
-        const match = normalized.match(regex);
-        return match ? cleanOutput(match[1]) : "";
-      };
-
-      const website = readInline(/Company\s+Website\s*:\s*([^\n\r]*)/i);
-      const depositsMatch = normalized.match(/\bDeposits?(?:\s*\(([^)]*)\))?\s*:\s*(.*?)(?:,\s*Industry\s*:|\n|\r|$)/i);
-      return {
-        tier: cleanOutput(tier),
-        deposits: depositsMatch ? cleanOutput(depositsMatch[2]) : "",
-        revenueMonth: normalizeRevenueMonth(depositsMatch && depositsMatch[1]) || previousMonthName(),
-        industry: readInline(/Industry\s*:\s*([^,\n\r]*)/i),
-        tib: readInline(/\bTIB\s*:\s*([^,\n\r]*)/i),
-        state: readInline(/\bState\s*:\s*([^,\n\r]*)/i),
-        website: website && !/^not\s+found$/i.test(website) ? website : "Not Found"
-      };
-    }
-
-    function normalizeStateCode(value) {
-      const cleaned = cleanOutput(value).replace(/[^A-Za-z ]/g, " ").replace(/\s+/g, " ").trim();
-      if (!cleaned) return "";
-      const upper = cleaned.toUpperCase();
-      if (stateCodes.has(upper)) return upper;
-      const codeMatch = upper.match(/\b[A-Z]{2}\b/);
-      if (codeMatch && stateCodes.has(codeMatch[0])) return codeMatch[0];
-      return stateNameCodes[upper] || cleaned;
-    }
-
-    function escapeHtml(value) {
-      return String(value || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    }
-
-    function searchItem(name, stateValue) {
-      const cleanName = cleanOutput(name);
-      if (!cleanName) return null;
-      const stateCode = normalizeStateCode(stateValue);
-      const query = cleanOutput(`${cleanName} ${stateCode}`);
-      return {
-        text: `${query} Google Search`,
-        href: `https://www.google.com/search?q=${encodeURIComponent(query)}`
-      };
-    }
-
-    function ownerSearchItems(searchState) {
-      return [
-        "ownerName",
-        "owner2Name",
-        "owner3Name",
-        "owner4Name"
-      ]
-        .map((nameKey) => searchItem(state.values[nameKey], searchState))
-        .filter(Boolean);
-    }
-
-    function extractedScrubState() {
-      return state.values.businessState;
-    }
-
-    function creditScrubData() {
-      const pricing = parsePricingScrub(pricingScrub.value);
-      const pdfState = extractedScrubState();
-      const scrubState = pdfState || pricing.state;
-      const searchState = pdfState || pricing.state;
-      const businessSearch = searchItem(state.values.businessName || state.values.businessDbaName, searchState);
-      const peopleSearches = ownerSearchItems(searchState);
-      return {
-        pricing,
-        businessSearch,
-        peopleSearches,
-        infoLines: [
-          `Company Website : ${pricing.website || "Not Found"}`,
-          "",
-          "FICO :",
-          `${pricing.revenueMonth} Revenue : ${pricing.deposits}`,
-          `Industry : ${pricing.industry}`,
-          `TIB : ${pricing.tib}`,
-          `State : ${normalizeStateCode(scrubState)}`,
-          "Datamerch : No Match",
-          "Received : N",
-          `EIN : ${formatEin(state.values.einNumber)}`,
-          "Customer Id :"
-        ]
-      };
-    }
-
-    function buildCreditScrubPlain() {
-      const data = creditScrubData();
-      const lines = [];
-
-      if (data.pricing.tier) lines.push(data.pricing.tier, "");
-      if (data.businessSearch) lines.push(data.businessSearch.text);
-      if (data.businessSearch && data.peopleSearches.length) lines.push("");
-      data.peopleSearches.forEach((item) => lines.push(item.text));
-      if (data.businessSearch || data.peopleSearches.length) lines.push("");
-      lines.push(...data.infoLines);
-
-      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd();
-    }
-
-    function buildCreditScrubHtml() {
-      const data = creditScrubData();
-      const parts = [];
-      const addLine = (line) => parts.push(line ? `<div>${escapeHtml(line)}</div>` : "<br>");
-
-      if (data.pricing.tier) {
-        addLine(data.pricing.tier);
-        addLine("");
-      }
-
-      if (data.businessSearch) {
-        parts.push(`<div><a href="${escapeHtml(data.businessSearch.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(data.businessSearch.text)}</a></div>`);
-      }
-      if (data.businessSearch && data.peopleSearches.length) addLine("");
-      data.peopleSearches.forEach((item) => {
-        parts.push(`<div><a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.text)}</a></div>`);
-      });
-      if (data.businessSearch || data.peopleSearches.length) addLine("");
-      data.infoLines.forEach(addLine);
-
-      return parts.join("");
-    }
-
-    function updateCreditScrub() {
-      if (!creditScrub || !pricingScrub) return;
-      creditScrub.innerHTML = buildCreditScrubHtml();
-    }
-
-    function resetExtractionValues() {
-      allFields.forEach(([key]) => {
-        state.lowConfidence[key] = false;
-        state.confidenceNotes[key] = "";
-        if (!state.manual[key]) state.values[key] = "";
-      });
-      applyFixedBusinessContact();
-    }
-
-    function markLowConfidence(key, note = "Low confidence extraction - please verify.") {
-      if (!key || !state.values[key]) return;
-      state.lowConfidence[key] = true;
-      state.confidenceNotes[key] = note;
-    }
-
-    function clearConfidence(key) {
-      state.lowConfidence[key] = false;
-      state.confidenceNotes[key] = "";
-    }
-
-    function numericOcrCleanup(value) {
-      return String(value || "")
-        .replace(/[OoQ]/g, "0")
-        .replace(/[Il|]/g, "1")
-        .replace(/[Ss]/g, "5")
-        .replace(/[Bb]/g, "8")
-        .replace(/[Zz]/g, "2")
-        .replace(/[Gg]/g, "6");
-    }
-
-    function cleanValueForKey(key, value) {
-      let cleaned = sensitiveKeys.has(key) ? cleanSensitiveNumber(value, key) : cleanOutput(value);
-      if (sensitiveKeys.has(key)) cleaned = cleanSensitiveNumber(numericOcrCleanup(value), key);
-      if (phoneKeys.has(key)) cleaned = cleanPhoneNumber(numericOcrCleanup(value));
-      if (emailKeys.has(key)) cleaned = cleanEmailAddress(value);
-      if (addressKeys.has(key)) cleaned = stripTrailingEmptyLabels(cleaned);
-      if (key === "businessName") cleaned = cleaned.replace(/\s+(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)\s*$/i, "").trim();
-      if (key === "businessDbaName" && /^(?:Doing(?:\s+Business)?|As\s*\(?\s*DBA\s*\)?)$/i.test(cleaned)) cleaned = "";
-      if (key === "businessDbaName") cleaned = cleaned.replace(/\s+(?:Owner\(s\)|Owner\s+\d+\s+Information|Owner\s+Information|Officers\(s\)).*$/i, "").trim();
-      if (nameKeys.has(key)) {
-        cleaned = cleaned
-          .replace(/\s+Name\s*\(\s*[2-4](?:nd|rd|th)?\s+Owner\s*\)\s*$/i, "")
-          .replace(/\s+Last\s+name\s*$/i, "")
-          .trim();
-      }
-      if (dateKeys.has(key)) {
-        const normalizedDate = numericOcrCleanup(cleaned).replace(/[.\-]/g, "/");
-        const dateMatch = normalizedDate.match(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/);
-        cleaned = dateMatch ? dateMatch[0] : "";
-      }
-      return cleaned;
-    }
-
-    function canWriteValue(key, force = false) {
-      if (!key) return false;
-      if (state.manual[key] && !force) return false;
-      if (state.values[key] && !force) return false;
-      return true;
-    }
-
-    function ownerPrefixFromSection(section) {
-      if (section === "owner4") return "owner4";
-      if (section === "owner3") return "owner3";
-      if (section === "owner2") return "owner2";
-      if (section === "owner") return "owner";
-      return "";
-    }
-
-    function ownerTargetFromSection(section) {
-      return ownerPrefixFromSection(section) || "business";
     }
 
     function normalizeLabel(label) {
@@ -2447,7 +2183,6 @@
       ["ownerName", "owner2Name", "owner3Name", "owner4Name"].forEach((key) => {
         if (!state.manual[key]) state.values[key] = cleanOutput(state.values[key]).replace(/\s+Last\s+name\s*$/i, "").trim();
       });
-      if (!state.manual.einNumber) state.values.einNumber = formatEin(state.values.einNumber);
     }
 
     function extractDetailsFromText(text) {
@@ -2617,13 +2352,7 @@
       state.file = null;
       fileInput.value = "";
       rawText.value = "";
-      pricingScrub.value = "";
-      Object.keys(state.values).forEach((key) => {
-        state.values[key] = "";
-        state.manual[key] = false;
-        state.lowConfidence[key] = false;
-        state.confidenceNotes[key] = "";
-      });
+      Object.keys(state.values).forEach((key) => state.values[key] = "");
       applyFixedBusinessContact();
       renderFields();
       setFile(null);
@@ -2636,44 +2365,6 @@
     saveLearningBtn.addEventListener("click", saveLearningFromCurrentDocument);
     downloadBtn.addEventListener("click", downloadExcel);
     clearBtn.addEventListener("click", clearAll);
-    resetLearningBtn.addEventListener("click", resetLearnedPatterns);
-    pricingScrub.addEventListener("input", updateCreditScrub);
-    copyCreditBtn.addEventListener("click", async () => {
-      const plainText = buildCreditScrubPlain();
-      const htmlText = buildCreditScrubHtml();
-      const selectCreditScrub = () => {
-        const range = document.createRange();
-        range.selectNodeContents(creditScrub);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-      };
-
-      try {
-        if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
-          await navigator.clipboard.write([
-            new ClipboardItem({
-              "text/html": new Blob([htmlText], { type: "text/html" }),
-              "text/plain": new Blob([plainText], { type: "text/plain" })
-            })
-          ]);
-        } else {
-          selectCreditScrub();
-          document.execCommand("copy");
-          window.getSelection().removeAllRanges();
-        }
-        setStatus("Credit scrub copied");
-      } catch (error) {
-        selectCreditScrub();
-        try {
-          document.execCommand("copy");
-        } catch (_) {
-        } finally {
-          window.getSelection().removeAllRanges();
-        }
-        setStatus("Credit scrub ready");
-      }
-    });
     rawText.addEventListener("input", () => {
       extractDetailsFromText(rawText.value);
       updateCounts();
