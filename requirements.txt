@@ -1,0 +1,21 @@
+pillow
+opencv-python
+pytesseract
+pymupdf
+openpyxl
+transformers
+torch
+torchvision
+python-doctr
+easyocr
+python-bidi==0.4.2
+scikit-image
+lazy-loader
+imageio
+tifffile
+ninja
+
+# Optional OCR engine. Python 3.14 par paddlepaddle ka Windows wheel available
+# nahi mila, isliye app PaddleOCR ko best-effort fallback ki tarah rakhta hai.
+paddleocr
+paddlepaddle
