@@ -130,6 +130,12 @@
       transition: border-color 160ms ease, background 160ms ease;
     }
 
+    .dropzone > div {
+      max-width: 100%;
+      min-width: 0;
+      padding: 0 8px;
+    }
+
     .dropzone.dragging {
       border-color: var(--accent);
       background: #ecfdf5;
@@ -167,6 +173,9 @@
       color: var(--muted);
       font-size: 13px;
       line-height: 1.45;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .actions {
@@ -651,6 +660,7 @@
       const normalized = normalizeExtractedText(text);
       if (isWaterstoneText(normalized)) return "Waterstone Advance";
       if (isChoiceCapitalText(normalized)) return "Choice Capital Solutions";
+      if (isSapphireCapitalText(normalized)) return "Sapphire Capital Group";
       if (isFundingApplicationText(normalized)) return "Funding Application";
       if (/Hand\s*Writing\s+Credit\s+App|Business\s+Information[\s\S]*Owner\s+Information/i.test(normalized)) return "Hand Writing Credit App";
       if (/SPIN\s+CAPITAL|Merchant\s+Pre-Qualification\s+Form/i.test(normalized)) return "Spin Capital";
@@ -2032,6 +2042,60 @@
       applySpinAddress("owner", get(ownerText, /City,\s*State\s+Zip\s*:?\s*/i, ownerStop));
     }
 
+    function isSapphireCapitalText(text) {
+      const normalized = normalizeExtractedText(text);
+      return /SAPPHIRE\s+CAPITAL\s+GROUP|Sapphire\s+Capital/i.test(normalized)
+        && /Merchant\s+Cash\s+Advance\s+Application/i.test(normalized)
+        && /BUSINESS\s+INFORMATION/i.test(normalized)
+        && /OWNER\s+INFORMATION/i.test(normalized);
+    }
+
+    function parseSapphireAddress(value) {
+      const text = cleanOutput(value)
+        .replace(/\s+(?:Owner\s+Information|Funding\s+Request|Amount\s+Requested|Use\s+of\s+Funds).*$/i, "")
+        .trim();
+      const match = text.match(/^(.+?)\s*,\s*([A-Za-z .'-]+?)\s*,?\s*([A-Z]{2})\s+(\d{5})(?:-\d{4})?\s*$/i);
+      if (!match) return { address: text, city: "", state: "", zip: "" };
+
+      return {
+        address: cleanOutput(match[1]),
+        city: cleanOutput(match[2]),
+        state: match[3].toUpperCase(),
+        zip: match[4]
+      };
+    }
+
+    function forceSapphireAddress(target, value) {
+      const parsed = parseSapphireAddress(value);
+      if (parsed.address) forceValue(`${target}Address`, parsed.address);
+      if (parsed.city) forceValue(`${target}City`, parsed.city);
+      if (parsed.state) forceValue(`${target}State`, parsed.state);
+      if (parsed.zip) forceValue(`${target}Zip`, parsed.zip);
+    }
+
+    // INDEX: SAPPHIRE CAPITAL GROUP PART START - Sapphire Capital Group PDF specific extraction code starts here.
+    function applySapphireCapitalPatterns(text) {
+      const normalized = normalizeExtractedText(text);
+      if (!isSapphireCapitalText(normalized)) return;
+
+      const flat = cleanOutput(normalized);
+      const ownerStart = flat.search(/\bOWNER\s+INFORMATION\b/i);
+      const fundingStart = flat.search(/\bFUNDING\s+REQUEST\b/i);
+      const businessText = ownerStart > 0 ? flat.slice(0, ownerStart) : flat;
+      const ownerText = ownerStart >= 0 ? flat.slice(ownerStart, fundingStart > ownerStart ? fundingStart : flat.length) : "";
+      const get = (source, labelRegex, stopRegex) => valueAfterLabel(source, labelRegex, stopRegex);
+
+      forceValue("businessName", get(businessText, /Legal\s+Business\s+Name\s*:?\s*/i, /\bEIN\b|Industry|Start\s+Date|Monthly\s+Revenue|Phone|Email|Business\s+Address|Owner\s+Information|$/i));
+      forceValue("einNumber", get(businessText, /\bEIN\s*:?\s*/i, /Industry|Start\s+Date|Monthly\s+Revenue|Phone|Email|Business\s+Address|Owner\s+Information|$/i));
+      forceSapphireAddress("business", get(businessText, /Business\s+Address\s*:?\s*/i, /Owner\s+Information|Funding\s+Request|$/i));
+
+      if (!ownerText) return;
+      forceValue("ownerName", get(ownerText, /Owner\s+Name\s*:?\s*/i, /Credit\s+Score|Date\s+of\s+Birth|SSN|Owner\s+Address|Funding\s+Request|$/i));
+      forceValue("ownerDob", get(ownerText, /Date\s+of\s+Birth\s*:?\s*/i, /SSN|Owner\s+Address|Funding\s+Request|$/i));
+      forceValue("ssn", get(ownerText, /\bSSN\s*:?\s*/i, /Owner\s+Address|Funding\s+Request|$/i));
+      forceSapphireAddress("owner", get(ownerText, /Owner\s+Address\s*:?\s*/i, /Funding\s+Request|Amount\s+Requested|Use\s+of\s+Funds|$/i));
+    }
+
     function isChoiceCapitalText(text) {
       const normalized = normalizeExtractedText(text);
       return /Choice\s+Capital\s+Solutions|CHOICECAPITALSOLUTIONS/i.test(normalized)
@@ -2042,9 +2106,20 @@
     function splitChoiceCompanyDescription(value) {
       const text = cleanOutput(value);
       if (!text || looksLikeOnlyLabels(text)) return ["", ""];
-      const match = text.match(/^(.+?\b(?:inc|llc|corp|corporation|ltd|co)\b)\s+(.+)$/i);
-      if (match) return [match[1], match[2]];
+      const companyName = choiceCompanyNameFromMixedValue(text);
+      if (companyName) return [companyName, cleanOutput(text.replace(companyName, ""))];
       return [text.replace(/\s+Business\s+Description\s*$/i, "").trim(), ""];
+    }
+
+    function choiceCompanyNameFromMixedValue(value) {
+      const text = cleanOutput(value)
+        .replace(/\b(?:Business\s+Description|Industry)\b\s*:?\s*/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!text || looksLikeOnlyLabels(text)) return "";
+
+      const match = text.match(/\b([A-Za-z0-9][A-Za-z0-9 .&,'-]{0,80}?\b(?:inc|llc|corp|corporation|ltd|co)\.?)\b/i);
+      return match ? cleanOutput(match[1]) : "";
     }
 
     function parseChoiceAddressRows(cleanRows, labelPattern, startIndex, endIndex = cleanRows.length) {
@@ -2104,7 +2179,8 @@
       const businessText = businessTextStart >= 0 ? flat.slice(businessTextStart, ownerTextStart > businessTextStart ? ownerTextStart : flat.length) : flat;
       const ownerText = ownerTextStart >= 0 ? flat.slice(ownerTextStart) : "";
       const owner2Text = owner2StandaloneStart >= 0 ? cleanRows.slice(owner2StandaloneStart).join(" ") : "";
-      const businessStop = /Business\s+Description|Legal\s+Entity|Industry|Federal\s+Tax\s+ID|Start\s+Date|Website|Business\s+Phone|Rent\s+or\s+Own|Avg\s+Monthly\s+Revenue|Use\s+of\s+Funds|Business\s+Address|Any\s+Balances|Current\s+Balance|With\s+Who|Requested\s+Funding\s+Amount|Owner\s+Information|2nd\s+Owner\s+Information|$/i;
+      const businessStop = /Business\s+Description|DBA\b|Legal\s+Entity|Industry|Federal\s+Tax\s+ID|Start\s+Date|Website|Business\s+Phone|Rent\s+or\s+Own|Avg\s+Monthly\s+Revenue|Use\s+of\s+Funds|Business\s+Address|Any\s+Balances|Current\s+Balance|With\s+Who|Requested\s+Funding\s+Amount|Owner\s+Information|2nd\s+Owner\s+Information|$/i;
+      const dbaStop = /Business\s+Description|Legal\s+Entity|Industry|Federal\s+Tax\s+ID|Start\s+Date|Website|Business\s+Phone|Rent\s+or\s+Own|Avg\s+Monthly\s+Revenue|Use\s+of\s+Funds|Business\s+Address|Any\s+Balances|Current\s+Balance|With\s+Who|Requested\s+Funding\s+Amount|Owner\s+Information|2nd\s+Owner\s+Information|$/i;
       const ownerStop = /E-?mail\s+Address|Mobile\s+Phone|SSN|Home\s+Address|Date\s+of\s+Birth|%\s+of\s+Ownership|Est\.\s+Credit\s+Score|2nd\s+Owner\s+Information|$/i;
       const get = (source, labelRegex, stopRegex) => {
         const value = valueAfterLabel(source, labelRegex, stopRegex);
@@ -2113,6 +2189,21 @@
       const rowAfter = (pattern, startIndex = 0, endIndex = cleanRows.length) => {
         const index = cleanRows.findIndex((row, rowNumber) => rowNumber >= startIndex && rowNumber < endIndex && pattern.test(row));
         return index >= 0 ? cleanRows[index + 1] || "" : "";
+      };
+      const valueNearChoiceLabel = (labelPattern, startIndex = 0, endIndex = cleanRows.length, stopPattern = dbaStop) => {
+        const labelIndex = cleanRows.findIndex((row, rowNumber) => rowNumber >= startIndex && rowNumber < endIndex && labelPattern.test(row));
+        if (labelIndex < 0) return "";
+
+        const sameRow = valueAfterLabel(cleanRows[labelIndex], labelPattern, stopPattern);
+        if (sameRow && !looksLikeOnlyLabels(sameRow)) return sameRow;
+
+        for (let index = labelIndex + 1; index < Math.min(endIndex, labelIndex + 4); index += 1) {
+          const row = cleanRows[index];
+          if (/Business\s+Legal\s+Name|Business\s+Description|Legal\s+Entity|Industry|Federal\s+Tax\s+ID|Start\s+Date|Website|Business\s+Phone|Rent\s+or\s+Own|Business\s+Address|Owner\s+Information|2nd\s+Owner\s+Information/i.test(row)) break;
+          if (row && !looksLikeOnlyLabels(row)) return row;
+        }
+
+        return "";
       };
       const exactChoiceNineDigits = (value) => {
         const cleaned = numericOcrCleanup(value);
@@ -2139,8 +2230,11 @@
 
       const nameDescriptionRow = rowAfter(/Business\s+Legal\s+Name.*Business\s+Description/i, businessStart >= 0 ? businessStart : 0, businessEnd);
       const [rowBusinessName] = splitChoiceCompanyDescription(nameDescriptionRow);
-      forceValue("businessName", get(businessText, /Business\s+Legal\s+Name\s*:?\s*/i, businessStop) || rowBusinessName);
-      forceValue("businessDbaName", "", { allowBlank: true });
+      const [textBusinessName] = splitChoiceCompanyDescription(get(businessText, /Business\s+Legal\s+Name\s*:?\s*/i, businessStop));
+      const rawDbaName = get(businessText, /\bDBA\s*:?\s*/i, dbaStop)
+        || valueNearChoiceLabel(/\bDBA\s*:?\s*/i, businessStart >= 0 ? businessStart : 0, businessEnd);
+      forceValue("businessName", textBusinessName || rowBusinessName);
+      forceValue("businessDbaName", choiceCompanyNameFromMixedValue(rawDbaName) || rawDbaName, { allowBlank: true });
       const choiceTin = get(businessText, /Federal\s+Tax\s+ID\s*:?\s*/i, /Start\s+Date|Business\s+Phone|Rent\s+or\s+Own|Business\s+Address|Owner\s+Information|$/i)
         || digitsNearChoiceLabel(/Federal\s+Tax\s+ID/i, businessStart >= 0 ? businessStart : 0, businessEnd)
         || (rowAfter(/Federal\s+Tax\s+ID.*Start\s+Date/i, businessStart >= 0 ? businessStart : 0, businessEnd).match(/\b\d{9}\b|\b\d{2}-\d{7}\b/) || [""])[0];
@@ -2924,6 +3018,7 @@
       applyChoiceCapitalPatterns(text, rows);
       applyWaterstonePatterns(text, rows);
       applyFundingApplicationPatterns(text, rows);
+      applySapphireCapitalPatterns(text);
       fixBusinessNamePair();
       parseAddressParts(state.values.businessAddress, "business");
       parseAddressParts(state.values.ownerAddress, "owner");
